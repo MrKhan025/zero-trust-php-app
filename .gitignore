@@ -1,0 +1,30 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Runtime Storage & Databases
+storage/database/*.sqlite
+storage/database/*.sqlite-journal
+storage/database/*.sqlite-wal
+storage/database/*.sqlite-shm
+storage/logs/*.log
+storage/cache/*
+!storage/database/.gitkeep
+!storage/logs/.gitkeep
+!storage/cache/.gitkeep
+
+# Dependencies & Build Artifacts
+/vendor/
+composer.lock
+.phpunit.result.cache
+.phpstan.cache
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
