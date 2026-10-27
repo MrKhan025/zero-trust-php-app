@@ -1,60 +1,87 @@
 # Contributing to ZeroTrust Shield (`zero-trust-php-app`)
 
-Thank you for your interest in improving this Zero-Trust reference implementation.
+Thank you for your interest in contributing to **ZeroTrust Shield Enterprise (`zero-trust-php-app`)**. Every contribution—whether cryptographic hardening, adversarial test coverage, accessibility improvements, or documentation—helps strengthen open-source Zero-Trust engineering in PHP.
 
-## Security Issues
+By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-**Do not open public GitHub issues for vulnerabilities.**
+## 1. Reporting Security Vulnerabilities
 
-Follow the process in [SECURITY.md](SECURITY.md):
-1. Provide a minimal PoC and affected component path privately.
-2. Include output of `php tests/SecurityTest.php` and `php bin/verify-ledger.php` when relevant.
+**Do not open public GitHub issues for security vulnerabilities.**
 
-## Development Setup
+Please follow the responsible disclosure process in [SECURITY.md](SECURITY.md):
+1. Provide a minimal Proof-of-Concept (PoC) and the affected component path privately to the maintainers.
+2. Include diagnostic output from `php tests/SecurityTest.php` and `php bin/verify-ledger.php` when relevant.
 
+## 2. Development Environment Setup
+
+### Prerequisites
+- **PHP 8.2 – 8.4** (CI runs on **PHP 8.4**)
+- Required extensions: `pdo`, `pdo_sqlite`, `sodium`, `openssl`, `mbstring`, `json`, `hash`
+- Optional extension: `redis` (for `RedisStorage` integration and static analysis)
+- **Composer 2.x**
+
+### Local Bootstrap
 ```bash
+# 1. Clone your fork
+git clone https://github.com/<your-username>/zero-trust-php-app.git
+cd zero-trust-php-app
+
+# 2. Install development dependencies (PHPUnit 11 & PHPStan 2.2)
+composer install
+
+# 3. Initialize environment config & generate 256-bit keys
 cp .env.example .env
 php bin/verify-ledger.php --generate-keys
-composer install
-php tests/SecurityTest.php
-./vendor/bin/phpunit
-php -S 127.0.0.1:8080 -t public
+
+# 4. Start the local development server
+composer serve
 ```
 
-## What We Welcome
+## 3. Mandatory Quality Gates
 
-- Bug fixes and security hardening
-- Additional adversarial test cases
-- WebAuthn / Passkeys support
-- Redis-backed rate limiting / nonce store
-- Improved device fingerprinting
-- Better observability (metrics, structured logs)
-- Documentation improvements
-- Docker / deployment refinements
+Every Pull Request is automatically validated by `.github/workflows/ci.yml`. Before opening a PR, run all four verification checks locally:
 
-## Pull Request Process
+```bash
+# 1. Validate composer.json schema
+composer validate --strict
 
-1. Fork the repository and create a feature branch from `main`.
-2. Keep changes focused. Prefer small, reviewable PRs.
-3. Run the security test suite locally:
-   ```bash
-   php tests/SecurityTest.php
-   ./vendor/bin/phpunit
-   ```
-4. If you added PHP code, ensure it passes static analysis:
-   ```bash
-   vendor/bin/phpstan analyse
-   ```
-5. Update documentation (README / SECURITY.md) if behavior or threat model changes.
-6. Do not commit `.env`, real keys, or database files.
+# 2. Run the adversarial security verification suite
+php tests/SecurityTest.php
 
-## Coding Standards
+# 3. Run the PHPUnit 11 test suite
+./vendor/bin/phpunit --colors=always
 
-- PHP 8.2+ with `declare(strict_types=1);`
-- Prefer pure functions / static methods in the current architecture unless a clear reason for DI exists
-- Constant-time comparisons (`hash_equals`) for any secret/MAC comparison
-- Zeroize sensitive material with `CryptoEngine::wipe()` / `sodium_memzero` where practical
-- No emulated PDO prepares
-- Keep cryptographic parameters explicit and documented
+# 4. Run PHPStan 2.2 static analysis at Level 6
+./vendor/bin/phpstan analyse --memory-limit=512M
 
-Thank you for helping make Zero-Trust authentication stronger and more accessible in PHP.
+# 5. Verify cryptographic audit ledger integrity
+php bin/verify-ledger.php
+```
+
+## 4. Coding, Cryptographic & Accessibility Standards
+
+### PHP & Static Analysis Standards
+- Declare `declare(strict_types=1);` at the top of every PHP file.
+- Provide explicit native parameter and return types on all methods, plus PHPDoc iterable value types (`@param array<string, mixed>`, `@return list<string>`) to satisfy **PHPStan Level 6**.
+- Keep classes `final` by default unless extension is explicitly required by an interface (`StorageInterface`).
+
+### Cryptographic & Database Invariants
+- **Constant-Time Comparisons**: Always use `hash_equals()` when comparing MACs, signatures, TOTP codes, recovery hashes, or blind indexes.
+- **Context Separation**: Never use `ZT_MASTER_ENCRYPTION_KEY` directly; derive a purpose-specific subkey via `CryptoEngine::deriveSubkey($context)`.
+- **AEAD Binding**: Always bind a canonical Associated Authenticated Data (`AAD`) string (such as `uuid|field` or `event_id|event_type|severity`) when calling `CryptoEngine::encrypt()` and `CryptoEngine::decrypt()`.
+- **Memory Hygiene**: Zeroize temporary secret buffers in `finally` blocks using `CryptoEngine::wipe($secret)`.
+- **Strict Prepared Statements**: Never interpolate variables into SQL queries. Keep `PDO::ATTR_EMULATE_PREPARES => false` enabled at all times.
+
+### Accessibility Standards (WCAG 2.1 AA)
+- Review [ACCESSIBILITY.md](ACCESSIBILITY.md) before modifying `public/index.php`.
+- Ensure all form inputs have explicit `<label for="...">` elements and standard `autocomplete` tokens.
+- Keep anti-bot honeytrap elements isolated from assistive technologies using `aria-hidden="true"` and `tabindex="-1"`.
+
+## 5. Pull Request Checklist
+
+- [ ] Branch created from the latest `main` branch (`git checkout -b feat/your-feature`).
+- [ ] `php tests/SecurityTest.php` passes (`14 Passed, 0 Failed`).
+- [ ] `./vendor/bin/phpunit` passes all unit and integration tests.
+- [ ] `./vendor/bin/phpstan analyse --memory-limit=512M` reports `0 errors`.
+- [ ] Documentation (`README.md`, `SECURITY.md`, or `ACCESSIBILITY.md`) updated if behavior, configuration, or UI changed.
+- [ ] No `.env` files, production keys, or `.sqlite` database files are committed.
