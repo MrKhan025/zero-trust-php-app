@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   security-and-quality:
@@ -47,3 +48,12 @@ jobs:
 
       - name: Verify audit ledger CLI
         run: php bin/verify-ledger.php
+
+      - name: Clean up old failed workflow runs
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --paginate "repos/${{ github.repository }}/actions/runs" \
+            --jq '.workflow_runs[] | select(.id != ${{ github.run_id }} and .conclusion == "failure") | .id' \
+            | xargs -r -n1 -I{} gh api -X DELETE "repos/${{ github.repository }}/actions/runs/{}" || true
