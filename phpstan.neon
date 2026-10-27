@@ -1,0 +1,16 @@
+parameters:
+    level: 6
+    paths:
+        - src
+        - bin
+        - public
+        - tests
+    excludePaths:
+        - storage
+    treatPhpDocTypesAsCertain: false
+    checkMissingIterableValueType: false
+    reportUnmatchedIgnoredErrors: false
+
+    ignoreErrors:
+        # Intentional for demo/test environments
+        - '#Call to an undefined method PDO::setAttribute#'
