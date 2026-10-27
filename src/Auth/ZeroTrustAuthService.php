@@ -164,6 +164,7 @@ final class ZeroTrustAuthService
         $password = (string) ($payload['password'] ?? '');
         $totpCode = trim((string) ($payload['totp_code'] ?? ''));
         $recoveryCode = trim((string) ($payload['recovery_code'] ?? ''));
+        $clientFingerprint = trim((string) ($payload['client_fingerprint'] ?? ''));
 
         // 1. Check IP & Account Rate Limit
         $ipLimit = RateLimiter::check('login_ip', $clientIp);
@@ -311,7 +312,7 @@ final class ZeroTrustAuthService
         $reset = $pdo->prepare('UPDATE users SET failed_attempts = 0, account_locked_until = 0, last_login_at = :now WHERE id = :id');
         $reset->execute([':now' => $now, ':id' => $userId]);
 
-        $session = self::issueSession($userId, $clientIp, $server, $mfaVerified);
+        $session = self::issueSession($userId, $clientIp, $server, $mfaVerified, $clientFingerprint);
 
         $decryptedEmail = CryptoEngine::decrypt((string) $user['email_encrypted'], $userUuid . '|email', 'user-pii');
 
@@ -524,14 +525,22 @@ final class ZeroTrustAuthService
      * @param array<string, mixed> $server
      * @return array{session_id: string, raw_token: string}
      */
-    private static function issueSession(int $userId, string $clientIp, array $server, bool $mfaVerified): array
-    {
+    private static function issueSession(
+        int $userId,
+        string $clientIp,
+        array $server,
+        bool $mfaVerified,
+        string $clientFingerprint = ''
+    ): array {
         $pdo = Database::connection();
         $sessionId = CryptoEngine::uuidV4();
         $rawToken = bin2hex(random_bytes(32));
         $tokenHash = CryptoEngine::blindIndex($rawToken, 'session-token');
 
         $deviceFp = ZeroTrustPolicyEngine::computeDeviceFingerprint($server);
+        $clientFpHash = $clientFingerprint !== ''
+            ? CryptoEngine::blindIndex($clientFingerprint, 'client-fingerprint')
+            : null;
         $ipSubnetHash = ZeroTrustPolicyEngine::computeIpSubnetHash($clientIp);
         $uaHash = ZeroTrustPolicyEngine::computeUserAgentHash((string) ($server['HTTP_USER_AGENT'] ?? ''));
 
@@ -540,11 +549,11 @@ final class ZeroTrustAuthService
 
         $insert = $pdo->prepare('
             INSERT INTO zt_sessions (
-                session_id, user_id, token_hash, device_fingerprint_hash,
+                session_id, user_id, token_hash, device_fingerprint_hash, client_fingerprint_hash,
                 ip_subnet_hash, user_agent_hash, mfa_verified, risk_score,
                 issued_at, last_rotated_at, last_active_at, expires_at, revoked
             ) VALUES (
-                :sid, :uid, :th, :dfp,
+                :sid, :uid, :th, :dfp, :cfp,
                 :iph, :uah, :mfa, 0,
                 :now, :now, :now, :exp, 0
             )
@@ -555,6 +564,7 @@ final class ZeroTrustAuthService
             ':uid' => $userId,
             ':th' => $tokenHash,
             ':dfp' => $deviceFp,
+            ':cfp' => $clientFpHash,
             ':iph' => $ipSubnetHash,
             ':uah' => $uaHash,
             ':mfa' => $mfaVerified ? 1 : 0,
@@ -614,7 +624,8 @@ final class ZeroTrustAuthService
         if ($username !== '' && stripos($password, $username) !== false) {
             return ['valid' => false, 'reason' => 'Password must not contain your username.'];
         }
-        $emailLocal = explode('@', $email)[0] ?? '';
+        $emailParts = explode('@', $email);
+        $emailLocal = $emailParts[0];
         if ($emailLocal !== '' && strlen($emailLocal) >= 3 && stripos($password, $emailLocal) !== false) {
             return ['valid' => false, 'reason' => 'Password must not contain your email identifier.'];
         }
