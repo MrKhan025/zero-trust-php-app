@@ -1,1 +1,49 @@
+name: CI
 
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  security-and-quality:
+    name: Security Tests & Static Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_sqlite, sodium, openssl, mbstring, json
+          coverage: none
+          tools: composer
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Generate test keys & run adversarial security suite
+        run: |
+          cp .env.example .env
+          php bin/verify-ledger.php --generate-keys
+          php tests/SecurityTest.php
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit --colors=always
+
+      - name: Static analysis (PHPStan)
+        run: vendor/bin/phpstan analyse --memory-limit=512M --error-format=github
+        continue-on-error: false
+
+      - name: Verify audit ledger CLI
+        run: php bin/verify-ledger.php
