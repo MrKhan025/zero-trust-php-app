@@ -14,6 +14,6 @@ parameters:
         # Intentional for demo/test environments and optional Redis extension
         - '#Call to an undefined method PDO::setAttribute#'
         - '#no value type specified in iterable type array#'
-        - '#by-ref type of method ZeroTrust\\Crypto\\CryptoEngine::wipe#'
+        - '#Parameter &\$secret by-ref type of method#'
         - '#unknown class Redis#i'
         - '#Class Redis not found#i'
