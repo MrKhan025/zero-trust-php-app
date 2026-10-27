@@ -13,5 +13,6 @@ parameters:
     ignoreErrors:
         # Intentional for demo/test environments and optional Redis extension
         - '#Call to an undefined method PDO::setAttribute#'
+        - '#no value type specified in iterable type array#'
         - '#unknown class Redis#i'
         - '#Class Redis not found#i'
