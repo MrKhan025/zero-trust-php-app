@@ -4,14 +4,28 @@ declare(strict_types=1);
 
 namespace ZeroTrust\Storage;
 
+use PDO;
 use ZeroTrust\Core\Database;
 use ZeroTrust\Crypto\CryptoEngine;
 
 final class SqliteStorage implements StorageInterface
 {
-    public function get(string $key): ?string
+    private static function connection(): PDO
     {
         $pdo = Database::connection();
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS kv_store (
+                key_hash TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                expires_at INTEGER NOT NULL DEFAULT 0
+            )
+        ');
+        return $pdo;
+    }
+
+    public function get(string $key): ?string
+    {
+        $pdo = self::connection();
         $hash = CryptoEngine::blindIndex($key, 'storage');
         $stmt = $pdo->prepare('SELECT value, expires_at FROM kv_store WHERE key_hash = :h LIMIT 1');
         $stmt->execute([':h' => $hash]);
@@ -32,7 +46,7 @@ final class SqliteStorage implements StorageInterface
 
     public function set(string $key, string $value, int $ttlSeconds = 0): void
     {
-        $pdo = Database::connection();
+        $pdo = self::connection();
         $hash = CryptoEngine::blindIndex($key, 'storage');
         $expires = $ttlSeconds > 0 ? time() + $ttlSeconds : 0;
 
@@ -46,7 +60,7 @@ final class SqliteStorage implements StorageInterface
 
     public function delete(string $key): void
     {
-        $pdo = Database::connection();
+        $pdo = self::connection();
         $hash = CryptoEngine::blindIndex($key, 'storage');
         $pdo->prepare('DELETE FROM kv_store WHERE key_hash = :h')->execute([':h' => $hash]);
     }
