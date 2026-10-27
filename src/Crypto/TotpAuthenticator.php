@@ -166,7 +166,7 @@ final class TotpAuthenticator
         $output = '';
         foreach ($chunks as $chunk) {
             $chunk = str_pad($chunk, 5, '0', STR_PAD_RIGHT);
-            $output .= self::BASE32_ALPHABET[bindec($chunk)];
+            $output .= self::BASE32_ALPHABET[(int) bindec($chunk)];
         }
         return $output;
     }
@@ -189,7 +189,7 @@ final class TotpAuthenticator
         $output = '';
         foreach ($bytes as $byte) {
             if (strlen($byte) === 8) {
-                $output .= chr(bindec($byte));
+                $output .= chr((int) bindec($byte));
             }
         }
         return $output;

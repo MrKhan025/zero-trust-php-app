@@ -18,6 +18,9 @@ final class WebAuthnService
 {
     private const CHALLENGE_TTL = 300;
 
+    /**
+     * @return array<string, mixed>
+     */
     public static function generateRegistrationOptions(string $userUuid, string $username): array
     {
         $challenge = random_bytes(32);
@@ -50,6 +53,10 @@ final class WebAuthnService
         ];
     }
 
+    /**
+     * @param array<string, mixed> $clientDataJSON
+     * @return array{success: bool, message: string, credential_id?: string}
+     */
     public static function verifyAndStoreRegistration(
         string $userUuid,
         array $clientDataJSON,
@@ -68,11 +75,11 @@ final class WebAuthnService
             return ['success' => false, 'message' => 'Invalid clientDataJSON.'];
         }
 
-        if (!hash_equals($expectedChallengeB64, $clientData['challenge'] ?? '')) {
+        if (!hash_equals($expectedChallengeB64, (string) ($clientData['challenge'] ?? ''))) {
             return ['success' => false, 'message' => 'Challenge mismatch.'];
         }
 
-        if (!self::isValidOrigin($clientData['origin'] ?? '')) {
+        if (!self::isValidOrigin((string) ($clientData['origin'] ?? ''))) {
             return ['success' => false, 'message' => 'Invalid origin.'];
         }
 
@@ -113,6 +120,9 @@ final class WebAuthnService
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public static function generateAuthenticationOptions(string $userUuid): array
     {
         $challenge = random_bytes(32);
@@ -122,7 +132,7 @@ final class WebAuthnService
         $credentials = self::loadCredentials($userUuid);
         $allowCredentials = [];
         foreach ($credentials as $cred) {
-            $allowCredentials[] = ['type' => 'public-key', 'id' => $cred['id']];
+            $allowCredentials[] = ['type' => 'public-key', 'id' => (string) ($cred['id'] ?? '')];
         }
 
         return [
@@ -134,6 +144,10 @@ final class WebAuthnService
         ];
     }
 
+    /**
+     * @param array<string, mixed> $clientDataJSON
+     * @return array{success: bool, message: string}
+     */
     public static function verifyAssertion(
         string $userUuid,
         string $credentialIdB64,
@@ -151,7 +165,7 @@ final class WebAuthnService
         $credentials = self::loadCredentials($userUuid);
         $credential = null;
         foreach ($credentials as $c) {
-            if (hash_equals($c['id'], $credentialIdB64)) {
+            if (hash_equals((string) ($c['id'] ?? ''), $credentialIdB64)) {
                 $credential = $c;
                 break;
             }
@@ -166,11 +180,11 @@ final class WebAuthnService
             return ['success' => false, 'message' => 'Invalid clientDataJSON.'];
         }
 
-        if (!hash_equals($expectedChallengeB64, $clientData['challenge'] ?? '')) {
+        if (!hash_equals($expectedChallengeB64, (string) ($clientData['challenge'] ?? ''))) {
             return ['success' => false, 'message' => 'Challenge mismatch.'];
         }
 
-        if (!self::isValidOrigin($clientData['origin'] ?? '')) {
+        if (!self::isValidOrigin((string) ($clientData['origin'] ?? ''))) {
             return ['success' => false, 'message' => 'Invalid origin.'];
         }
 
@@ -189,7 +203,8 @@ final class WebAuthnService
             return ['success' => false, 'message' => 'User presence flag not set.'];
         }
 
-        $clientDataHash = hash('sha256', json_encode($clientDataJSON, JSON_UNESCAPED_SLASHES), true);
+        $clientDataRaw = json_encode($clientDataJSON, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $clientDataHash = hash('sha256', $clientDataRaw, true);
         $signedData = $authData . $clientDataHash;
         $signature = self::base64urlDecode($signatureB64);
 
@@ -197,7 +212,7 @@ final class WebAuthnService
             return ['success' => false, 'message' => 'Invalid signature encoding.'];
         }
 
-        $publicKey = openssl_pkey_get_public($credential['publicKey']);
+        $publicKey = openssl_pkey_get_public((string) ($credential['publicKey'] ?? ''));
         if ($publicKey === false) {
             return ['success' => false, 'message' => 'Invalid stored public key.'];
         }
@@ -208,7 +223,7 @@ final class WebAuthnService
         }
 
         $newSignCount = self::extractSignCount($authData);
-        if ($newSignCount > 0 && $newSignCount <= ($credential['signCount'] ?? 0)) {
+        if ($newSignCount > 0 && $newSignCount <= (int) ($credential['signCount'] ?? 0)) {
             return ['success' => false, 'message' => 'Sign count regression detected.'];
         }
 
@@ -234,6 +249,10 @@ final class WebAuthnService
         return hash_equals($expected, rtrim($origin, '/'));
     }
 
+    /**
+     * @param array<string, mixed>|string $clientDataJSON
+     * @return ?array<string, mixed>
+     */
     private static function parseClientData(array|string $clientDataJSON): ?array
     {
         if (is_string($clientDataJSON)) {
@@ -251,7 +270,7 @@ final class WebAuthnService
     private static function base64urlDecode(string $data): ?string
     {
         $remainder = strlen($data) % 4;
-        if ($remainder) {
+        if ($remainder > 0) {
             $data .= str_repeat('=', 4 - $remainder);
         }
         $decoded = base64_decode(strtr($data, '-_', '+/'), true);
@@ -274,25 +293,36 @@ final class WebAuthnService
 
     private static function extractSignCount(string $authData): int
     {
-        if (strlen($authData) < 37) return 0;
+        if (strlen($authData) < 37) {
+            return 0;
+        }
         $count = unpack('N', substr($authData, 33, 4));
-        return (int) ($count[1] ?? 0);
+        return is_array($count) ? (int) ($count[1] ?? 0) : 0;
     }
 
     private static function extractPublicKeyPem(string $authData): ?string
     {
-        if (strlen($authData) < 37) return null;
+        if (strlen($authData) < 37) {
+            return null;
+        }
         $offset = 37;
         $flags = ord($authData[32]);
-        if (($flags & 0x40) === 0) return null;
+        if (($flags & 0x40) === 0) {
+            return null;
+        }
 
         $offset += 16; // AAGUID
-        if ($offset + 2 > strlen($authData)) return null;
-        $credIdLen = unpack('n', substr($authData, $offset, 2))[1];
+        if ($offset + 2 > strlen($authData)) {
+            return null;
+        }
+        $unpackedLen = unpack('n', substr($authData, $offset, 2));
+        $credIdLen = is_array($unpackedLen) ? (int) ($unpackedLen[1] ?? 0) : 0;
         $offset += 2 + $credIdLen;
 
         $coseRaw = substr($authData, $offset);
-        if ($coseRaw === '') return null;
+        if ($coseRaw === '') {
+            return null;
+        }
 
         try {
             $coseOffset = 0;
@@ -301,7 +331,9 @@ final class WebAuthnService
             return null;
         }
 
-        if (!is_array($coseKey)) return null;
+        if (!is_array($coseKey)) {
+            return null;
+        }
 
         $kty = $coseKey[1] ?? null;
         if ($kty === 2) { // EC2
@@ -318,8 +350,8 @@ final class WebAuthnService
     private static function ecPublicKeyToPem(string $x, string $y): string
     {
         $point = "\x04" . $x . $y;
-        $oidEcPublicKey = hex2bin('06072a8648ce3d0201');
-        $oidPrime256v1  = hex2bin('06082a8648ce3d030107');
+        $oidEcPublicKey = (string) hex2bin('06072a8648ce3d0201');
+        $oidPrime256v1  = (string) hex2bin('06082a8648ce3d030107');
         $algorithm = self::asn1Sequence($oidEcPublicKey . $oidPrime256v1);
         $bitString = "\x03" . self::asn1Length(strlen($point) + 1) . "\x00" . $point;
         $spki = self::asn1Sequence($algorithm . $bitString);
@@ -330,8 +362,12 @@ final class WebAuthnService
 
     private static function asn1Length(int $length): string
     {
-        if ($length < 0x80) return chr($length);
-        if ($length < 0x100) return "\x81" . chr($length);
+        if ($length < 0x80) {
+            return chr($length);
+        }
+        if ($length < 0x100) {
+            return "\x81" . chr($length);
+        }
         return "\x82" . pack('n', $length);
     }
 
@@ -343,7 +379,9 @@ final class WebAuthnService
     // Minimal CBOR decoder
     private static function cborDecode(string $data, int &$offset = 0): mixed
     {
-        if ($offset >= strlen($data)) throw new RuntimeException('CBOR: unexpected end');
+        if ($offset >= strlen($data)) {
+            throw new RuntimeException('CBOR: unexpected end');
+        }
         $header = ord($data[$offset++]);
         $major = $header >> 5;
         $info  = $header & 0x1F;
@@ -362,10 +400,22 @@ final class WebAuthnService
 
     private static function cborReadLength(string $data, int &$offset, int $info): int
     {
-        if ($info < 24) return $info;
-        if ($info === 24) return ord($data[$offset++]);
-        if ($info === 25) { $v = unpack('n', substr($data, $offset, 2))[1]; $offset += 2; return $v; }
-        if ($info === 26) { $v = unpack('N', substr($data, $offset, 4))[1]; $offset += 4; return $v; }
+        if ($info < 24) {
+            return $info;
+        }
+        if ($info === 24) {
+            return ord($data[$offset++]);
+        }
+        if ($info === 25) {
+            $u = unpack('n', substr($data, $offset, 2));
+            $offset += 2;
+            return is_array($u) ? (int) ($u[1] ?? 0) : 0;
+        }
+        if ($info === 26) {
+            $u = unpack('N', substr($data, $offset, 4));
+            $offset += 4;
+            return is_array($u) ? (int) ($u[1] ?? 0) : 0;
+        }
         throw new RuntimeException('CBOR length too large');
     }
 
@@ -376,24 +426,37 @@ final class WebAuthnService
         return $bytes;
     }
 
+    /**
+     * @return list<mixed>
+     */
     private static function cborReadArray(string $data, int &$offset, int $count): array
     {
         $arr = [];
-        for ($i = 0; $i < $count; $i++) $arr[] = self::cborDecode($data, $offset);
+        for ($i = 0; $i < $count; $i++) {
+            $arr[] = self::cborDecode($data, $offset);
+        }
         return $arr;
     }
 
+    /**
+     * @return array<int|string, mixed>
+     */
     private static function cborReadMap(string $data, int &$offset, int $count): array
     {
         $map = [];
         for ($i = 0; $i < $count; $i++) {
             $k = self::cborDecode($data, $offset);
             $v = self::cborDecode($data, $offset);
-            $map[$k] = $v;
+            if (is_int($k) || is_string($k)) {
+                $map[$k] = $v;
+            }
         }
         return $map;
     }
 
+    /**
+     * @param array<string, mixed> $credential
+     */
     private static function storeCredential(string $userUuid, array $credential): void
     {
         $existing = self::loadCredentials($userUuid);
@@ -401,11 +464,14 @@ final class WebAuthnService
         self::saveCredentials($userUuid, $existing);
     }
 
+    /**
+     * @param array<string, mixed> $updated
+     */
     private static function updateCredential(string $userUuid, array $updated): void
     {
         $existing = self::loadCredentials($userUuid);
         foreach ($existing as &$cred) {
-            if (hash_equals($cred['id'], $updated['id'])) {
+            if (hash_equals((string) ($cred['id'] ?? ''), (string) ($updated['id'] ?? ''))) {
                 $cred = $updated;
                 break;
             }
@@ -413,13 +479,18 @@ final class WebAuthnService
         self::saveCredentials($userUuid, $existing);
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
     private static function loadCredentials(string $userUuid): array
     {
         $pdo = Database::connection();
         $stmt = $pdo->prepare('SELECT webauthn_credentials_encrypted FROM users WHERE uuid = :uuid LIMIT 1');
         $stmt->execute([':uuid' => $userUuid]);
         $row = $stmt->fetch();
-        if ($row === false || empty($row['webauthn_credentials_encrypted'])) return [];
+        if ($row === false || empty($row['webauthn_credentials_encrypted'])) {
+            return [];
+        }
 
         try {
             $json = CryptoEngine::decrypt(
@@ -428,12 +499,15 @@ final class WebAuthnService
                 'user-mfa'
             );
             $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-            return is_array($data) ? $data : [];
+            return is_array($data) ? array_values($data) : [];
         } catch (\Throwable) {
             return [];
         }
     }
 
+    /**
+     * @param list<array<string, mixed>> $credentials
+     */
     private static function saveCredentials(string $userUuid, array $credentials): void
     {
         $pdo = Database::connection();
