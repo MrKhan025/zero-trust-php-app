@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace ZeroTrust\Tests;
 
+use PDO;
 use PHPUnit\Framework\TestCase;
 use ZeroTrust\Auth\ZeroTrustAuthService;
+use ZeroTrust\Core\Database;
 use ZeroTrust\Crypto\TotpAuthenticator;
 use ZeroTrust\Policy\ZeroTrustPolicyEngine;
-use ZeroTrust\Core\Database;
-use PDO;
+use ZeroTrust\Storage\SqliteStorage;
+use ZeroTrust\Storage\StorageFactory;
 
 final class AuthFlowTest extends TestCase
 {
@@ -17,6 +19,7 @@ final class AuthFlowTest extends TestCase
     {
         $pdo = new PDO('sqlite::memory:');
         Database::setConnection($pdo);
+        StorageFactory::setInstance(new SqliteStorage());
     }
 
     public function testFullRegistrationLoginAndHijackDetection(): void
@@ -38,7 +41,7 @@ final class AuthFlowTest extends TestCase
         $this->assertTrue($reg['success']);
         $this->assertArrayHasKey('totp_secret', $reg);
 
-        $totp = TotpAuthenticator::getCode((string) $reg['totp_secret']);
+        $totp = TotpAuthenticator::getCode((string) ($reg['totp_secret'] ?? ''));
 
         $auth = ZeroTrustAuthService::authenticate([
             'username' => 'alice_secops',
@@ -49,9 +52,10 @@ final class AuthFlowTest extends TestCase
 
         $this->assertTrue($auth['success']);
         $this->assertArrayHasKey('session_token', $auth);
+        $sessionToken = (string) ($auth['session_token'] ?? '');
 
         $eval = ZeroTrustAuthService::verifyAndEvaluateSession(
-            $auth['session_token'],
+            $sessionToken,
             $clientIp,
             $server
         );
@@ -64,7 +68,7 @@ final class AuthFlowTest extends TestCase
             'HTTP_SEC_CH_UA_PLATFORM' => '"Windows"',
         ];
         $hijack = ZeroTrustAuthService::verifyAndEvaluateSession(
-            $auth['session_token'],
+            $sessionToken,
             '198.51.100.99',
             $hijackServer
         );

@@ -14,6 +14,8 @@ use ZeroTrust\Crypto\TotpAuthenticator;
 use ZeroTrust\Defense\BotDefenseGuard;
 use ZeroTrust\Defense\WafMiddleware;
 use ZeroTrust\Policy\ZeroTrustPolicyEngine;
+use ZeroTrust\Storage\SqliteStorage;
+use ZeroTrust\Storage\StorageFactory;
 
 require_once dirname(__DIR__) . '/src/Bootstrap.php';
 Bootstrap::init(dirname(__DIR__));
@@ -21,6 +23,7 @@ Bootstrap::init(dirname(__DIR__));
 // Bind an isolated in-memory SQLite database for deterministic testing
 $memoryPdo = new PDO('sqlite::memory:');
 Database::setConnection($memoryPdo);
+StorageFactory::setInstance(new SqliteStorage());
 
 final class SecurityTestRunner
 {
@@ -122,7 +125,7 @@ $reg = ZeroTrustAuthService::registerUser([
 ], $clientIp, false);
 $runner->assert($reg['success'], 'Zero-Trust identity provisioned with encrypted PII & TOTP');
 
-$liveTotp = TotpAuthenticator::getCode((string) $reg['totp_secret']);
+$liveTotp = TotpAuthenticator::getCode((string) ($reg['totp_secret'] ?? ''));
 $serverContext = [
     'HTTP_USER_AGENT' => 'Mozilla/5.0 (X11; Linux x86_64) ZeroTrustBrowser/1.0',
     'HTTP_ACCEPT_LANGUAGE' => 'en-US,en;q=0.9',
@@ -134,10 +137,11 @@ $auth = ZeroTrustAuthService::authenticate([
     'password' => 'Ultra$ecureZeroTrust2026!',
     'totp_code' => $liveTotp,
 ], $clientIp, $serverContext, false);
-$runner->assert($auth['success'] && isset($auth['session_token']), 'Multi-Factor Authentication issues bound Zero-Trust session');
+$sessionToken = (string) ($auth['session_token'] ?? '');
+$runner->assert($auth['success'] && $sessionToken !== '', 'Multi-Factor Authentication issues bound Zero-Trust session');
 
 // Verify normal request evaluation
-$evalNormal = ZeroTrustAuthService::verifyAndEvaluateSession($auth['session_token'], $clientIp, $serverContext);
+$evalNormal = ZeroTrustAuthService::verifyAndEvaluateSession($sessionToken, $clientIp, $serverContext);
 $runner->assert(
     $evalNormal['authenticated'] && $evalNormal['decision'] === ZeroTrustPolicyEngine::DECISION_ALLOW && $evalNormal['risk_score'] === 0,
     'Zero-Trust Policy Engine allows matching Device Fingerprint + IP Subnet (Risk = 0)'
@@ -149,7 +153,7 @@ $hijackerServer = [
     'HTTP_ACCEPT_LANGUAGE' => 'ru-RU',
     'HTTP_SEC_CH_UA_PLATFORM' => '"Windows"',
 ];
-$evalHijack = ZeroTrustAuthService::verifyAndEvaluateSession($auth['session_token'], '198.51.100.99', $hijackerServer);
+$evalHijack = ZeroTrustAuthService::verifyAndEvaluateSession($sessionToken, '198.51.100.99', $hijackerServer);
 $runner->assert(
     !$evalHijack['authenticated'] && $evalHijack['decision'] === ZeroTrustPolicyEngine::DECISION_DENY_TERMINATE,
     'Zero-Trust Policy Engine automatically revokes stolen session upon Device + IP Subnet drift'
