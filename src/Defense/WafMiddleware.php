@@ -61,7 +61,7 @@ final class WafMiddleware
         $inputs = [];
 
         foreach ($get as $k => $v) {
-            $inputs['GET:' . $k] = is_scalar($v) ? (string) $v : json_encode($v);
+            $inputs['GET:' . $k] = is_scalar($v) ? (string) $v : (string) json_encode($v);
         }
         foreach ($post as $k => $v) {
             // Do not run regex heuristics against raw password fields to avoid false positives on complex symbols,
@@ -81,7 +81,7 @@ final class WafMiddleware
         $inputs['USER_AGENT'] = $ua;
 
         foreach ($inputs as $source => $value) {
-            if (!is_string($value) || $value === '') {
+            if ($value === '') {
                 continue;
             }
             if (str_contains($value, "\0")) {

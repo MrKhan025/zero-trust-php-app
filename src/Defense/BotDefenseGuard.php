@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace ZeroTrust\Defense;
 
-use PDO;
 use ZeroTrust\Core\Config;
-use ZeroTrust\Core\Database;
 use ZeroTrust\Crypto\CryptoEngine;
+use ZeroTrust\Storage\StorageFactory;
 
 /**
  * Anti-AI & Automated Exploit Bot Defense Engine.
@@ -98,7 +97,7 @@ final class BotDefenseGuard
             return ['passed' => false, 'reason' => 'POW_WORK_INSUFFICIENT'];
         }
 
-        // 6. Enforce Single-Use Nonce Replay Protection in Database
+        // 6. Enforce Single-Use Nonce Replay Protection via Storage Layer
         if (!self::consumeNonce($challengeId, 'pow', $now + $ttl)) {
             return ['passed' => false, 'reason' => 'POW_CHALLENGE_REPLAYED'];
         }
@@ -111,28 +110,16 @@ final class BotDefenseGuard
      */
     public static function consumeNonce(string $rawNonce, string $purpose, int $expiresAt): bool
     {
-        $pdo = Database::connection();
+        $storage = StorageFactory::get();
         $nonceHash = CryptoEngine::blindIndex($rawNonce, 'nonce:' . $purpose);
+        $key = 'nonce:' . $purpose . ':' . $nonceHash;
 
-        // Purge expired nonces opportunistically
-        $cleanup = $pdo->prepare('DELETE FROM used_nonces WHERE expires_at < :now');
-        $cleanup->execute([':now' => time()]);
-
-        $check = $pdo->prepare('SELECT nonce_hash FROM used_nonces WHERE nonce_hash = :hash LIMIT 1');
-        $check->execute([':hash' => $nonceHash]);
-        if ($check->fetch() !== false) {
+        if ($storage->exists($key)) {
             return false;
         }
 
-        $insert = $pdo->prepare('
-            INSERT INTO used_nonces (nonce_hash, purpose, expires_at)
-            VALUES (:hash, :purpose, :expires)
-        ');
-        $insert->execute([
-            ':hash' => $nonceHash,
-            ':purpose' => $purpose,
-            ':expires' => $expiresAt,
-        ]);
+        $ttl = max(1, $expiresAt - time());
+        $storage->set($key, '1', $ttl);
 
         return true;
     }
