@@ -73,6 +73,12 @@ final class Database
     private static function migrate(PDO $pdo): void
     {
         $pdo->exec("
+            CREATE TABLE IF NOT EXISTS kv_store (
+                key_hash TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                expires_at INTEGER NOT NULL DEFAULT 0
+            );
+
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 uuid TEXT NOT NULL UNIQUE,
@@ -84,6 +90,7 @@ final class Database
                 mfa_enabled INTEGER NOT NULL DEFAULT 0,
                 totp_secret_encrypted TEXT DEFAULT NULL,
                 recovery_codes_json TEXT DEFAULT NULL,
+                webauthn_credentials_encrypted TEXT DEFAULT NULL,
                 account_locked_until INTEGER DEFAULT 0,
                 failed_attempts INTEGER NOT NULL DEFAULT 0,
                 last_login_at INTEGER DEFAULT NULL,
@@ -95,6 +102,7 @@ final class Database
                 user_id INTEGER NOT NULL,
                 token_hash TEXT NOT NULL UNIQUE,
                 device_fingerprint_hash TEXT NOT NULL,
+                client_fingerprint_hash TEXT DEFAULT NULL,
                 ip_subnet_hash TEXT NOT NULL,
                 user_agent_hash TEXT NOT NULL,
                 mfa_verified INTEGER NOT NULL DEFAULT 0,
