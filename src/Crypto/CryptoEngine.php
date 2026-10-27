@@ -248,8 +248,11 @@ final class CryptoEngine
     /**
      * Zeroizes sensitive string buffers in memory.
      */
-    public static function wipe(string &$secret): void
+    public static function wipe(?string &$secret): void
     {
+        if ($secret === null) {
+            return;
+        }
         if (function_exists('sodium_memzero')) {
             try {
                 sodium_memzero($secret);
