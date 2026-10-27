@@ -27,7 +27,7 @@ final class ZeroTrustPolicyEngine
      *
      * @param array<string, mixed> $server
      */
-    public static function computeDeviceFingerprint(array $server): string
+    public static function computeDeviceFingerprint(array $server, ?string $clientFingerprint = null): string
     {
         $components = [
             (string) ($server['HTTP_USER_AGENT'] ?? 'unknown-ua'),
@@ -36,6 +36,10 @@ final class ZeroTrustPolicyEngine
             (string) ($server['HTTP_SEC_CH_UA_PLATFORM'] ?? 'no-ch-platform'),
             (string) ($server['HTTP_SEC_CH_UA_MOBILE'] ?? 'no-ch-mobile'),
         ];
+
+        if ($clientFingerprint !== null && $clientFingerprint !== '') {
+            $components[] = $clientFingerprint;
+        }
 
         return CryptoEngine::blindIndex(implode('||', $components), 'device-fingerprint');
     }
