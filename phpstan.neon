@@ -8,9 +8,10 @@ parameters:
     excludePaths:
         - storage
     treatPhpDocTypesAsCertain: false
-    checkMissingIterableValueType: false
     reportUnmatchedIgnoredErrors: false
 
     ignoreErrors:
-        # Intentional for demo/test environments
+        # Intentional for demo/test environments and optional Redis extension
         - '#Call to an undefined method PDO::setAttribute#'
+        - '#unknown class Redis#i'
+        - '#Class Redis not found#i'

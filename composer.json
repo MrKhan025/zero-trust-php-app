@@ -29,6 +29,8 @@
     },
     "scripts": {
         "test": "php tests/SecurityTest.php",
+        "phpunit": "vendor/bin/phpunit",
+        "phpstan": "vendor/bin/phpstan analyse --memory-limit=512M",
         "verify-ledger": "php bin/verify-ledger.php",
         "serve": "php -S 127.0.0.1:8080 -t public"
     },
