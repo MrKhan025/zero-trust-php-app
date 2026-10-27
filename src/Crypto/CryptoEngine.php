@@ -17,7 +17,7 @@ use ZeroTrust\Core\Config;
  * - HKDF-SHA256 Context-Bound Subkey Derivation (RFC 5869).
  * - Argon2id Memory-Hard Password Hashing with pre-hash HMAC-SHA256 Peppering.
  * - Constant-Time String & MAC Comparisons (`hash_equals`) to eliminate timing side-channels.
- * - Explicit Memory Zeroization (`sodium_memzero`) for sensitive key material.
+ * - Explicit Memory Zeroization for sensitive key material.
  */
 final class CryptoEngine
 {
@@ -246,21 +246,14 @@ final class CryptoEngine
     }
 
     /**
-     * Zeroizes sensitive string buffers in memory.
+     * Zeroizes sensitive string buffers in memory while preserving a string type.
      */
-    public static function wipe(?string &$secret): void
+    public static function wipe(string &$secret): void
     {
-        if ($secret === null) {
-            return;
+        $length = strlen($secret);
+        for ($i = 0; $i < $length; $i++) {
+            $secret[$i] = "\0";
         }
-        if (function_exists('sodium_memzero')) {
-            try {
-                sodium_memzero($secret);
-                return;
-            } catch (\Throwable) {
-                // Fallback below if string is interned
-            }
-        }
-        $secret = str_repeat("\0", strlen($secret));
+        $secret = '';
     }
 }
