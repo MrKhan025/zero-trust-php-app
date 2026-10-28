@@ -1,13 +1,13 @@
 # Changelog
 
-All notable changes to **ZeroTrust Shield Enterprise (`zero-trust-php-app`)** are documented in this file.
+All notable changes to **`zerotrust-php`** are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-10-28
+## [1.0.0](https://www.google.com/search?q=https://github.com/MrKhan025/zerotrust-php/releases/tag/v1.0.0) - 2026-10-28
 
 ### Added
-- **NIST SP 800-207 Continuous Adaptive Policy Engine** (`ZeroTrustPolicyEngine`) with live risk scoring (`0–100`) across device fingerprints, User-Agent hashes, and `/24` IPv4 (`/48` IPv6) subnets.
+- **Continuous Adaptive Policy Engine** (`ZeroTrustPolicyEngine`) with live risk scoring (`0–100`) across device fingerprints, User-Agent hashes, and `/24` IPv4 (`/48` IPv6) subnets.
 - **Authenticated Encryption with Associated Data (AEAD)** (`CryptoEngine`) using `libsodium` XChaCha20-Poly1305-IETF with automatic fallback to OpenSSL AES-256-GCM and HKDF-SHA256 subkey derivation.
 - **Peppered Argon2id Password Hashing** with pre-hash HMAC-SHA256 peppering and constant-time dummy verification against username timing enumeration.
 - **Multi-Factor Authentication**: Full RFC 6238 TOTP (`TotpAuthenticator`), 8 single-use HMAC recovery codes, and pure-PHP WebAuthn / Passkeys (`WebAuthnService` with CBOR & ES256 COSE verification).
