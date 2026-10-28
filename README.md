@@ -1,7 +1,9 @@
 # ZeroTrust Shield Enterprise (`zero-trust-php-app`)
 
 [![CI — Security Tests & Static Analysis](https://github.com/MrKhan025/zero-trust-php-app/actions/workflows/ci.yml/badge.svg)](https://github.com/MrKhan025/zero-trust-php-app/actions/workflows/ci.yml)
-[![PHP Version](https://img.shields.io/badge/PHP-8.2%20--%208.4-777BB4?logo=php&logoColor=white)](https://www.php.net/)
+[![CodeQL Security Analysis](https://github.com/MrKhan025/zero-trust-php-app/actions/workflows/codeql.yml/badge.svg)](https://github.com/MrKhan025/zero-trust-php-app/actions/workflows/codeql.yml)
+[![PHP Version](https://img.shields.io/badge/PHP-8.4%20%7C%208.5%20%7C%208.6-777BB4?logo=php&logoColor=white)](https://www.php.net/)
+[![OS Matrix](https://img.shields.io/badge/OS-Ubuntu%2026.04%20%7C%20macOS%2015%20%7C%20Windows%202025-E95420?logo=ubuntu&logoColor=white)](.github/workflows/ci.yml)
 [![Architecture](https://img.shields.io/badge/NIST-SP%20800--207%20Zero--Trust-10b981)](https://csrc.nist.gov/publications/detail/sp/800-207/final)
 [![Cryptography](https://img.shields.io/badge/AEAD-XChaCha20--Poly1305%20%7C%20AES--256--GCM-3b82f6)](SECURITY.md)
 [![Static Analysis](https://img.shields.io/badge/PHPStan-Level%206%20(v2.2)-8b5cf6)](phpstan.neon)
@@ -11,6 +13,17 @@
 **ZeroTrust Shield Enterprise** is a production-grade, zero-dependency PHP reference architecture implementing **NIST SP 800-207 Continuous Adaptive Authentication**, **XChaCha20-Poly1305 / AES-256-GCM Authenticated Encryption (AEAD)**, **Stateless SHA-256 Proof-of-Work (PoW) Anti-AI Bot Defense**, **RFC 6238 TOTP & Pure-PHP WebAuthn Passkeys**, and a **Tamper-Evident Cryptographic Hash-Chained Audit Ledger**.
 
 > **Core Philosophy — Assume Breach, Verify Explicitly:** Never trust a network perimeter, an unverified form submission, or a previously issued session cookie. Every HTTP request is inspected by an application-layer WAF, bound to device and network telemetry, and logged in an AEAD-encrypted, HMAC-chained forensic ledger.
+
+## Multi-OS & Multi-PHP Continuous Integration Matrix
+
+Every push and pull request is verified across the latest operating systems and PHP runtimes via GitHub Actions (`.github/workflows/ci.yml` and `.github/workflows/codeql.yml`):
+
+| Operating System | Runner Image | PHP Versions Verified | Verification Scope |
+| :--- | :--- | :---: | :--- |
+| **Ubuntu 26.04 LTS** *(Latest Linux)* | `ubuntu-26.04` | **PHP 8.5, PHP 8.6, PHP 8.4** | Adversarial Security Suite, PHPUnit 11, PHPStan 2.2 (Level 6), Audit Ledger CLI & CodeQL |
+| **Ubuntu 24.04 LTS** | `ubuntu-24.04` | **PHP 8.5** | Full Cryptographic, WAF, Auth & Ledger Verification |
+| **macOS 15 Sequoia** *(Apple Silicon)* | `macos-15` | **PHP 8.5** | macOS ARM64 Cross-Platform Cryptographic & SQLite Verification |
+| **Windows Server 2025** | `windows-2025` | **PHP 8.5** | Windows x64 Cross-Platform Verification |
 
 ## Key Capabilities & Security Matrix
 
@@ -74,7 +87,7 @@ Incoming HTTP Request
 
 ### 1. Prerequisites
 
-- **PHP 8.2, 8.3, or 8.4** with extensions: `pdo`, `pdo_sqlite`, `sodium`, `openssl`, `mbstring`, `json`, `hash` (optional: `redis`)
+- **PHP 8.4, 8.5, or 8.6** (compatible with PHP 8.2+) with extensions: `pdo`, `pdo_sqlite`, `sodium`, `openssl`, `mbstring`, `json`, `hash` (optional: `redis`)
 - **Composer** (optional—`src/Bootstrap.php` includes a built-in PSR-4 fallback autoloader so the app runs even without `vendor/`)
 
 ### 2. Local Installation & Key Generation
@@ -105,7 +118,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-This launches the hardened `php:8.4-fpm-alpine` container (`Dockerfile`) paired with `nginx:1.27-alpine` (`docker/nginx.conf`) on port **`8080`**.
+This launches the hardened `php:8.5-fpm-alpine` container (`Dockerfile`) paired with `nginx:1.27-alpine` (`docker/nginx.conf`) on port **`8080`**.
 
 ## Running the Verification & Test Suites
 
@@ -141,8 +154,13 @@ php bin/verify-ledger.php
 
 ```text
 zero-trust-php-app/
-├── .github/workflows/
-│   └── ci.yml                       # GitHub Actions CI (PHP 8.4, Adversarial Suite, PHPUnit 11, PHPStan 2.2)
+├── .github/
+│   ├── ISSUE_TEMPLATE/              # Structured Bug Report & Feature Request issue forms
+│   ├── workflows/
+│   │   ├── ci.yml                   # Multi-OS (Ubuntu 26.04/24.04, macOS 15, Windows 2025) & PHP 8.4/8.5/8.6 CI
+│   │   └── codeql.yml               # CodeQL Security Analysis workflow on Ubuntu 26.04 LTS
+│   ├── PULL_REQUEST_TEMPLATE.md     # 8-point security & static analysis PR checklist
+│   └── dependabot.yml               # Automated weekly Composer & GitHub Actions updates
 ├── bin/
 │   └── verify-ledger.php            # CLI CSPRNG key generator & cryptographic audit chain verifier
 ├── docker/
@@ -171,7 +189,7 @@ zero-trust-php-app/
 ├── ACCESSIBILITY.md                 # WCAG 2.1 AA accessibility architecture & testing standards
 ├── CODE_OF_CONDUCT.md               # Contributor Covenant v2.1 Code of Conduct
 ├── CONTRIBUTING.md                  # Developer workflow, security standards & PR guidelines
-├── Dockerfile                       # Hardened PHP 8.4 FPM Alpine container image
+├── Dockerfile                       # Hardened PHP 8.5 FPM Alpine container image
 ├── docker-compose.yml               # Multi-container orchestration (PHP-FPM + Nginx)
 ├── LICENSE                          # MIT License
 └── SECURITY.md                      # Threat model, cryptographic specifications & vulnerability disclosure
