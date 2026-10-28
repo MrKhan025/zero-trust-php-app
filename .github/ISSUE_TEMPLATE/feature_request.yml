@@ -1,0 +1,29 @@
+name: Feature or Hardening Request
+description: Propose a new Zero-Trust security control, cryptographic enhancement, or accessibility improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Threat Vector or Use Case
+      description: What security threat, operational problem, or usability gap does this proposal address?
+      placeholder: Describe the threat scenario or user need...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Describe how the feature should work and which modules in `src/` it affects.
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification & Test Plan
+      description: How should this feature be tested in `tests/SecurityTest.php` and PHPUnit?
+    validations:
+      required: false

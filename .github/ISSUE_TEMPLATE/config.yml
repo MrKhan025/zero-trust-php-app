@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability Disclosure
+    url: https://github.com/MrKhan025/zero-trust-php-app/blob/main/SECURITY.md
+    about: Please do not file public issues for security vulnerabilities. Review SECURITY.md for responsible disclosure guidelines.
+  - name: Accessibility Conformance & Feedback
+    url: https://github.com/MrKhan025/zero-trust-php-app/blob/main/ACCESSIBILITY.md
+    about: Review our WCAG 2.1 Level AA accessibility architecture and reporting guidelines.
