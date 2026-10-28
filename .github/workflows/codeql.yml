@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   analyze:
@@ -44,9 +44,11 @@ jobs:
         with:
           category: "/language:${{ matrix.language }}"
 
-      - name: Clean up old failed workflow runs
+      - name: Clean up old failed and cancelled workflow runs
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api --paginate "repos/${{ github.repository }}/actions/runs"             --jq '.workflow_runs[] | select(.id != ${{ github.run_id }} and .conclusion == "failure") | .id'             | xargs -r -n1 -I{} gh api -X DELETE "repos/${{ github.repository }}/actions/runs/{}" || true
+          gh api --paginate "repos/${{ github.repository }}/actions/runs" \
+            --jq '.workflow_runs[] | select(.id != ${{ github.run_id }} and (.conclusion == "failure" or .conclusion == "cancelled")) | .id' \
+            | xargs -r -n1 -I{} gh api -X DELETE "repos/${{ github.repository }}/actions/runs/{}" || true

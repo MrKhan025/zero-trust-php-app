@@ -21,7 +21,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   matrix-tests:
@@ -52,7 +52,7 @@ jobs:
             os_name: Ubuntu 24.04 LTS
             php: '8.5'
             experimental: false
-          - os: macos-15
+          - os: macos-15-intel
             os_name: macOS 15 Sequoia
             php: '8.5'
             experimental: false
@@ -88,10 +88,10 @@ jobs:
           php -d error_reporting=24575 tests/SecurityTest.php
 
       - name: Run PHPUnit
-        run: php -d error_reporting=24575 vendor/bin/phpunit --colors=always
+        run: php -d error_reporting=24575 vendor/phpunit/phpunit/phpunit --colors=always
 
       - name: Static analysis (PHPStan)
-        run: php -d error_reporting=24575 vendor/bin/phpstan analyse --memory-limit=512M --error-format=github
+        run: php -d error_reporting=24575 vendor/phpstan/phpstan/phpstan analyse --memory-limit=512M --error-format=github
 
       - name: Verify audit ledger CLI
         run: php -d error_reporting=24575 bin/verify-ledger.php
@@ -100,7 +100,7 @@ jobs:
     name: Security Tests & Static Analysis
     needs: [matrix-tests]
     runs-on: ubuntu-26.04
-    if: always()
+    if: ${{ !cancelled() }}
     steps:
       - name: Verify matrix status
         run: |
@@ -110,11 +110,11 @@ jobs:
           fi
           echo "All required OS (Ubuntu 26.04, Ubuntu 24.04, macOS 15, Windows Server 2025) and PHP (8.4, 8.5, 8.6) checks passed!"
 
-      - name: Clean up old failed workflow runs
+      - name: Clean up old failed and cancelled workflow runs
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api --paginate "repos/${{ github.repository }}/actions/runs" \
-            --jq '.workflow_runs[] | select(.id != ${{ github.run_id }} and .conclusion == "failure") | .id' \
+            --jq '.workflow_runs[] | select(.id != ${{ github.run_id }} and (.conclusion == "failure" or .conclusion == "cancelled")) | .id' \
             | xargs -r -n1 -I{} gh api -X DELETE "repos/${{ github.repository }}/actions/runs/{}" || true
