@@ -9,7 +9,7 @@ use ZeroTrust\Crypto\CryptoEngine;
 use ZeroTrust\Defense\BotDefenseGuard;
 
 /**
- * Continuous Adaptive Risk & Trust Evaluation Engine (NIST SP 800-207).
+ * Continuous Adaptive Risk & Trust Evaluation Engine (zerotrust-php).
  *
  * Evaluates every incoming request against cryptographic session context,
  * network telemetry, device fingerprint binding, and behavioral anomalies.
