@@ -1,8 +1,15 @@
 {
-    "name": "security/zero-trust-php-app",
-    "description": "Enterprise-Grade Zero-Trust PHP Authentication & Continuous Adaptive Trust Engine with AEAD Cryptography, Proof-of-Work Anti-AI Bot Defense, RFC 6238 TOTP MFA, and Hash-Chained Audit Ledger.",
+    "name": "mrkhan025/zerotrust-php",
+    "description": "Zero-Trust PHP Authentication & Continuous Adaptive Trust Engine with AEAD Cryptography, Proof-of-Work Anti-AI Bot Defense, RFC 6238 TOTP & WebAuthn Passkeys, and Hash-Chained Audit Ledger.",
     "type": "project",
+    "homepage": "https://github.com/MrKhan025/zerotrust-php",
     "license": "MIT",
+    "support": {
+        "issues": "https://github.com/MrKhan025/zerotrust-php/issues",
+        "source": "https://github.com/MrKhan025/zerotrust-php",
+        "security": "https://github.com/MrKhan025/zerotrust-php/blob/main/SECURITY.md",
+        "docs": "https://github.com/MrKhan025/zerotrust-php#readme"
+    },
     "minimum-stability": "stable",
     "require": {
         "php": ">=8.2",

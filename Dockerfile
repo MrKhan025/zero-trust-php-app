@@ -1,5 +1,11 @@
 FROM php:8.5-fpm-alpine
 
+LABEL org.opencontainers.image.title="zerotrust-php" \
+      org.opencontainers.image.description="zerotrust-php — Continuous Adaptive Authentication & Cryptographic Gateway for PHP" \
+      org.opencontainers.image.url="https://github.com/MrKhan025/zerotrust-php" \
+      org.opencontainers.image.source="https://github.com/MrKhan025/zerotrust-php" \
+      org.opencontainers.image.licenses="MIT"
+
 # Install system dependencies and libsodium
 RUN apk add --no-cache \
     libsodium-dev \
