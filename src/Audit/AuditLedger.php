@@ -8,16 +8,7 @@ use ZeroTrust\Core\Database;
 use ZeroTrust\Crypto\CryptoEngine;
 
 /**
- * Tamper-Evident Cryptographic Hash-Chained Security Audit Ledger.
- *
- * Every security event is:
- * 1. Assigned a unique UUIDv4 `event_id`.
- * 2. Encrypted at rest using XChaCha20-Poly1305 / AES-256-GCM with the `event_id` and `event_type`
- *    bound as Associated Authenticated Data (AAD) so context cannot be swapped across rows.
- * 3. Chained via SHA-256 (`entry_hash = HMAC-SHA256(prev_hash | event_id | user_id | event_type | severity | risk_score | context_encrypted | created_at)`).
- *
- * If an attacker with direct database write access modifies, deletes, or reorders a single historical
- * log record, `AuditLedger::verifyChainIntegrity()` immediately detects the exact broken link.
+ * Tamper-Evident Cryptographic Hash-Chained Security Audit Ledger & Telemetry Exporter.
  */
 final class AuditLedger
 {
@@ -45,7 +36,6 @@ final class AuditLedger
         $aad = $eventId . '|' . $eventType . '|' . $severity;
         $encryptedContext = CryptoEngine::encrypt($jsonContext, $aad, 'audit-ledger');
 
-        // Fetch previous entry hash
         $stmt = $pdo->query('SELECT entry_hash FROM audit_ledger ORDER BY id DESC LIMIT 1');
         $lastRow = $stmt !== false ? $stmt->fetch() : false;
         $prevHash = is_array($lastRow) && isset($lastRow['entry_hash'])
@@ -119,7 +109,6 @@ final class AuditLedger
             $entryHash = (string) $row['entry_hash'];
             $createdAt = (int) $row['created_at'];
 
-            // 1. Verify chain link to previous block
             if (!hash_equals($expectedPrevHash, $prevHash)) {
                 return [
                     'valid' => false,
@@ -129,7 +118,6 @@ final class AuditLedger
                 ];
             }
 
-            // 2. Recompute and verify HMAC-SHA256 entry hash
             $recomputed = self::computeEntryHash(
                 $prevHash,
                 $eventId,
@@ -151,7 +139,6 @@ final class AuditLedger
                 ];
             }
 
-            // 3. Verify AEAD decryption & Associated Data (AAD) integrity
             try {
                 $aad = $eventId . '|' . $eventType . '|' . $severity;
                 CryptoEngine::decrypt($encryptedContext, $aad, 'audit-ledger');
@@ -221,6 +208,86 @@ final class AuditLedger
         }
 
         return $results;
+    }
+
+    /**
+     * Computes real-time anonymized security telemetry for Prometheus / OpenTelemetry & JSON dashboards.
+     *
+     * @return array{
+     *     audit_chain_valid: int,
+     *     audit_entries_total: int,
+     *     registered_identities_total: int,
+     *     active_sessions_total: int,
+     *     revoked_sessions_total: int,
+     *     waf_blocks_total: int,
+     *     pow_failures_total: int,
+     *     critical_events_total: int
+     * }
+     */
+    public static function getSecurityMetrics(): array
+    {
+        $pdo = Database::connection();
+        $chain = self::verifyChainIntegrity();
+        $now = time();
+
+        $usersCount = (int) ($pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() ?: 0);
+
+        $activeStmt = $pdo->prepare('SELECT COUNT(*) FROM zt_sessions WHERE revoked = 0 AND expires_at > :now');
+        $activeStmt->execute([':now' => $now]);
+        $activeSessions = (int) ($activeStmt->fetchColumn() ?: 0);
+
+        $revokedSessions = (int) ($pdo->query('SELECT COUNT(*) FROM zt_sessions WHERE revoked = 1')->fetchColumn() ?: 0);
+        $wafBlocks = (int) ($pdo->query("SELECT COUNT(*) FROM audit_ledger WHERE event_type = 'WAF_PAYLOAD_BLOCKED'")->fetchColumn() ?: 0);
+        $powFailures = (int) ($pdo->query("SELECT COUNT(*) FROM audit_ledger WHERE event_type IN ('AUTH_POW_FAILED', 'REGISTER_BOT_DEFENSE_BLOCKED')")->fetchColumn() ?: 0);
+        $criticalEvents = (int) ($pdo->query("SELECT COUNT(*) FROM audit_ledger WHERE severity = 'CRITICAL'")->fetchColumn() ?: 0);
+
+        return [
+            'audit_chain_valid' => $chain['valid'] ? 1 : 0,
+            'audit_entries_total' => $chain['total_entries'],
+            'registered_identities_total' => $usersCount,
+            'active_sessions_total' => $activeSessions,
+            'revoked_sessions_total' => $revokedSessions,
+            'waf_blocks_total' => $wafBlocks,
+            'pow_failures_total' => $powFailures,
+            'critical_events_total' => $criticalEvents,
+        ];
+    }
+
+    /**
+     * Formats security metrics in standard Prometheus text exposition format (0.0.4).
+     */
+    public static function formatPrometheusMetrics(): string
+    {
+        $m = self::getSecurityMetrics();
+        $lines = [
+            '# HELP zerotrust_audit_chain_valid Whether the cryptographic hash-chained audit ledger is intact (1 = valid, 0 = tampered).',
+            '# TYPE zerotrust_audit_chain_valid gauge',
+            'zerotrust_audit_chain_valid ' . $m['audit_chain_valid'],
+            '# HELP zerotrust_audit_entries_total Total number of cryptographic blocks in the audit ledger.',
+            '# TYPE zerotrust_audit_entries_total counter',
+            'zerotrust_audit_entries_total ' . $m['audit_entries_total'],
+            '# HELP zerotrust_registered_identities_total Total provisioned Zero-Trust identities.',
+            '# TYPE zerotrust_registered_identities_total gauge',
+            'zerotrust_registered_identities_total ' . $m['registered_identities_total'],
+            '# HELP zerotrust_active_sessions_total Currently active, non-expired Zero-Trust sessions.',
+            '# TYPE zerotrust_active_sessions_total gauge',
+            'zerotrust_active_sessions_total ' . $m['active_sessions_total'],
+            '# HELP zerotrust_revoked_sessions_total Total sessions revoked by logout or adaptive risk policy.',
+            '# TYPE zerotrust_revoked_sessions_total counter',
+            'zerotrust_revoked_sessions_total ' . $m['revoked_sessions_total'],
+            '# HELP zerotrust_waf_blocks_total Total malicious payloads blocked by WafMiddleware.',
+            '# TYPE zerotrust_waf_blocks_total counter',
+            'zerotrust_waf_blocks_total ' . $m['waf_blocks_total'],
+            '# HELP zerotrust_pow_failures_total Total failed Proof-of-Work or honeytrap bot challenges.',
+            '# TYPE zerotrust_pow_failures_total counter',
+            'zerotrust_pow_failures_total ' . $m['pow_failures_total'],
+            '# HELP zerotrust_critical_events_total Total CRITICAL severity events recorded in the ledger.',
+            '# TYPE zerotrust_critical_events_total counter',
+            'zerotrust_critical_events_total ' . $m['critical_events_total'],
+            '',
+        ];
+
+        return implode("\n", $lines);
     }
 
     private static function computeEntryHash(
