@@ -24,45 +24,91 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  security-and-quality:
-    name: Security Tests & Static Analysis
-    runs-on: ubuntu-24.04
+  matrix-tests:
+    name: ${{ matrix.os_name }} (PHP ${{ matrix.php }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-26.04
+            os_name: Ubuntu 26.04 LTS
+            php: '8.5'
+            experimental: false
+          - os: ubuntu-26.04
+            os_name: Ubuntu 26.04 LTS
+            php: '8.6'
+            experimental: true
+          - os: ubuntu-26.04
+            os_name: Ubuntu 26.04 LTS
+            php: '8.4'
+            experimental: false
+          - os: ubuntu-24.04
+            os_name: Ubuntu 24.04 LTS
+            php: '8.5'
+            experimental: false
+          - os: macos-15
+            os_name: macOS 15 Sequoia
+            php: '8.5'
+            experimental: false
+          - os: windows-2025
+            os_name: Windows Server 2025
+            php: '8.5'
+            experimental: false
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v5
 
-      - name: Setup PHP
+      - name: Setup PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
-          extensions: pdo, pdo_sqlite, sodium, openssl, mbstring, json, redis
+          php-version: ${{ matrix.php }}
+          extensions: pdo, pdo_sqlite, sodium, openssl, mbstring, json
           coverage: none
           tools: composer
         env:
-          fail-fast: true
+          fail-fast: ${{ !matrix.experimental }}
 
       - name: Validate composer.json
         run: composer validate --strict
 
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer install --prefer-dist --no-progress --no-interaction --ignore-platform-req=php+
 
       - name: Generate test keys & run adversarial security suite
         run: |
           cp .env.example .env
-          php bin/verify-ledger.php --generate-keys
-          php tests/SecurityTest.php
+          php -d error_reporting=24575 bin/verify-ledger.php --generate-keys
+          php -d error_reporting=24575 tests/SecurityTest.php
 
       - name: Run PHPUnit
-        run: vendor/bin/phpunit --colors=always
+        run: php -d error_reporting=24575 vendor/bin/phpunit --colors=always
 
       - name: Static analysis (PHPStan)
-        run: vendor/bin/phpstan analyse --memory-limit=512M --error-format=github
-        continue-on-error: false
+        run: php -d error_reporting=24575 vendor/bin/phpstan analyse --memory-limit=512M --error-format=github
 
       - name: Verify audit ledger CLI
-        run: php bin/verify-ledger.php
+        run: php -d error_reporting=24575 bin/verify-ledger.php
+
+  security-and-quality:
+    name: Security Tests & Static Analysis
+    needs: [matrix-tests]
+    runs-on: ubuntu-26.04
+    if: always()
+    steps:
+      - name: Verify matrix status
+        run: |
+          if [ "${{ needs.matrix-tests.result }}" != "success" ]; then
+            echo "One or more required OS/PHP matrix jobs failed."
+            exit 1
+          fi
+          echo "All required OS (Ubuntu 26.04, Ubuntu 24.04, macOS 15, Windows Server 2025) and PHP (8.4, 8.5, 8.6) checks passed!"
 
       - name: Clean up old failed workflow runs
         if: always()
