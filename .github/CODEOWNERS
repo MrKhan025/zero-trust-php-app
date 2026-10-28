@@ -1,0 +1,8 @@
+# Automatic review ownership for security-critical modules
+*                   @MrKhan025
+/src/Crypto/        @MrKhan025
+/src/Policy/        @MrKhan025
+/src/Auth/          @MrKhan025
+/src/Defense/       @MrKhan025
+/src/Audit/         @MrKhan025
+/.github/workflows/ @MrKhan025
