@@ -29,7 +29,7 @@ final class WebAuthnService
         StorageFactory::get()->set('webauthn:reg:' . $userUuid, $challengeB64, self::CHALLENGE_TTL);
 
         $rpId = self::getRpId();
-        $rpName = Config::get('APP_NAME', 'ZeroTrust Shield') ?? 'ZeroTrust Shield';
+        $rpName = Config::get('APP_NAME', 'zerotrust-php') ?? 'zerotrust-php';
 
         return [
             'challenge' => $challengeB64,

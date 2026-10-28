@@ -69,7 +69,7 @@ final class TotpAuthenticator
     /**
      * Builds an `otpauth://` provisioning URI compatible with Google Authenticator, Authy, 1Password, and YubiKey.
      */
-    public static function getProvisioningUri(string $accountName, string $secret, string $issuer = 'ZeroTrustShield'): string
+    public static function getProvisioningUri(string $accountName, string $secret, string $issuer = 'zerotrust-php'): string
     {
         $label = rawurlencode($issuer . ':' . $accountName);
         $params = http_build_query([
