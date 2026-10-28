@@ -17,7 +17,7 @@ final class Config
 
     public static function load(string $envFilePath, string $basePath): void
     {
-        self::$basePath = rtrim($basePath, '/');
+        self::$basePath = rtrim($basePath, '/\\');
 
         if (is_file($envFilePath) && is_readable($envFilePath)) {
             $lines = file($envFilePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
@@ -88,6 +88,6 @@ final class Config
     {
         return $subPath === ''
             ? self::$basePath
-            : self::$basePath . '/' . ltrim($subPath, '/');
+            : self::$basePath . '/' . ltrim(str_replace('\\', '/', $subPath), '/');
     }
 }
