@@ -1,0 +1,58 @@
+name: Bug Report
+description: Report a non-sensitive bug, regression, or unexpected behavior in zerotrust-php.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **Security Notice:** Do **not** report security vulnerabilities in public GitHub issues. Please follow the private disclosure instructions in [`SECURITY.md`](https://github.com/MrKhan025/zerotrust-php/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Bug Summary
+      description: Provide a clear, concise description of the bug.
+      placeholder: Describe what went wrong...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - Authentication & MFA (ZeroTrustAuthService / TotpAuthenticator / WebAuthnService)
+        - Cryptographic Engine (CryptoEngine)
+        - Policy & Adaptive Risk Engine (ZeroTrustPolicyEngine)
+        - Bot Defense & Rate Limiting (BotDefenseGuard / RateLimiter / WafMiddleware)
+        - Audit Ledger & CLI (AuditLedger / bin/verify-ledger.php)
+        - Storage & Database (Database / SqliteStorage / RedisStorage)
+        - Frontend Gateway & Accessibility (public/index.php)
+        - CI/CD & Docker (.github/workflows/ci.yml / Dockerfile)
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps or test case to reproduce the behavior.
+      placeholder: |
+        1. Run '...'
+        2. Submit payload '...'
+        3. Observe error '...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: PHP version, OS, and storage driver.
+      value: |
+        - PHP Version: 8.5
+        - OS / Container: Ubuntu 26.04 LTS / Alpine Docker
+        - Storage Driver: sqlite
+    validations:
+      required: true
