@@ -1,8 +1,8 @@
-# Contributing to ZeroTrust Shield (`zero-trust-php-app`)
+# Contributing to `zerotrust-php`
 
-Thank you for your interest in contributing to **ZeroTrust Shield Enterprise (`zero-trust-php-app`)**. Every contribution—whether cryptographic hardening, adversarial test coverage, accessibility improvements, or documentation—helps strengthen open-source Zero-Trust engineering in PHP.
+Thank you for your interest in contributing to **`zerotrust-php`**. Every contribution—whether cryptographic hardening, adversarial test coverage, accessibility improvements, or documentation—helps strengthen open-source Zero-Trust engineering in PHP.
 
-By participating in this project, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
+By participating in this project, you agree to abide by our [Code of Conduct](https://www.google.com/search?q=CODE_OF_CONDUCT.md).
 
 ## 1. Reporting Security Vulnerabilities
 
@@ -15,7 +15,7 @@ Please follow the responsible disclosure process in [SECURITY.md](SECURITY.md):
 ## 2. Development Environment Setup
 
 ### Prerequisites
-- **PHP 8.2 – 8.4** (CI runs on **PHP 8.4**)
+- **PHP 8.2 – 8.6** (CI runs on **PHP 8.4, 8.5, and 8.6** across **Ubuntu 26.04, Ubuntu 24.04, macOS 15, and Windows Server 2025**)
 - Required extensions: `pdo`, `pdo_sqlite`, `sodium`, `openssl`, `mbstring`, `json`, `hash`
 - Optional extension: `redis` (for `RedisStorage` integration and static analysis)
 - **Composer 2.x**
@@ -23,8 +23,8 @@ Please follow the responsible disclosure process in [SECURITY.md](SECURITY.md):
 ### Local Bootstrap
 ```bash
 # 1. Clone your fork
-git clone https://github.com/<your-username>/zero-trust-php-app.git
-cd zero-trust-php-app
+git clone https://github.com/MrKhan025/zerotrust-php.git
+cd zerotrust-php
 
 # 2. Install development dependencies (PHPUnit 11 & PHPStan 2.2)
 composer install
@@ -73,7 +73,7 @@ php bin/verify-ledger.php
 - **Strict Prepared Statements**: Never interpolate variables into SQL queries. Keep `PDO::ATTR_EMULATE_PREPARES => false` enabled at all times.
 
 ### Accessibility Standards (WCAG 2.1 AA)
-- Review [ACCESSIBILITY.md](ACCESSIBILITY.md) before modifying `public/index.php`.
+- Review [ACCESSIBILITY.md](https://www.google.com/search?q=ACCESSIBILITY.md) before modifying `public/index.php`.
 - Ensure all form inputs have explicit `<label for="...">` elements and standard `autocomplete` tokens.
 - Keep anti-bot honeytrap elements isolated from assistive technologies using `aria-hidden="true"` and `tabindex="-1"`.
 

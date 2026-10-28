@@ -1,16 +1,16 @@
 # Accessibility Policy & Conformance (`ACCESSIBILITY.md`)
 
-**ZeroTrust Shield Enterprise (`zero-trust-php-app`)** is committed to ensuring that high-assurance security never comes at the expense of human accessibility. Authentication gateways are critical infrastructure: every user—including people who rely on screen readers, keyboard-only navigation, voice control, magnification, or high-contrast displays—must be able to register, complete Multi-Factor Authentication (MFA), and audit their session telemetry independently.
+**`zerotrust-php`** is committed to ensuring that high-assurance security never comes at the expense of human accessibility. Authentication gateways are critical infrastructure: every user—including people who rely on screen readers, keyboard-only navigation, voice control, magnification, or high-contrast displays—must be able to register, complete Multi-Factor Authentication (MFA), and audit their session telemetry independently.
 
 ## 1. Conformance Target
 
-The ZeroTrust Shield web portal (`public/index.php`) targets **Web Content Accessibility Guidelines (WCAG) 2.1 Level AA** conformance across all authentication, enrollment, and dashboard views.
+The zerotrust-php web portal (`public/index.php`) targets **Web Content Accessibility Guidelines (WCAG) 2.1 Level AA** conformance across all authentication, enrollment, and dashboard views.
 
 ## 2. Accessible Security & Anti-Bot Engineering
 
-Traditional bot defenses (such as distorted visual CAPTCHAs or puzzle-dragging challenges) frequently lock out blind, low-vision, and motor-impaired users. `zero-trust-php-app` replaces visual CAPTCHAs with **accessible cryptographic defenses**:
+Traditional bot defenses (such as distorted visual CAPTCHAs or puzzle-dragging challenges) frequently lock out blind, low-vision, and motor-impaired users. `zerotrust-php` replaces visual CAPTCHAs with **accessible cryptographic defenses**:
 
-| Security Mechanism | Potential Accessibility Risk | How `zero-trust-php-app` Ensures Accessibility |
+| Security Mechanism | Potential Accessibility Risk | How `zerotrust-php` Ensures Accessibility |
 | :--- | :--- | :--- |
 | **Stateless SHA-256 Proof-of-Work (PoW)** | Users might not know why form submission pauses while the browser computes hashes. | Completely invisible to human senses (no visual puzzle to solve). The `.pow-status` indicator updates dynamically and uses polite live-region semantics so screen readers announce computation progress without stealing focus. |
 | **Semantic Honeytrap Fields** | Screen readers or switch-access users might accidentally focus and fill hidden bot-trap inputs. | Honeytrap containers (`.honeytrap`) declare `aria-hidden="true"`, and the inner input sets `tabindex="-1"` and `autocomplete="off"` with an explicit `<label>Leave this field blank</label>` fallback so assistive technologies never focus or auto-fill it. |
@@ -48,7 +48,7 @@ When submitting Pull Requests that modify `public/index.php` or any user-facing 
 
 ## 6. Reporting Accessibility Issues
 
-If you encounter an accessibility barrier in `zero-trust-php-app`, please open an issue on [GitHub Issues](https://www.google.com/search?q=https://github.com/MrKhan025/zero-trust-php-app/issues) with the `[Accessibility]` prefix, describing:
+If you encounter an accessibility barrier in `zerotrust-php`, please open an issue on [GitHub Issues](https://www.google.com/search?q=https://github.com/MrKhan025/zerotrust-php/issues) with the `[Accessibility]` prefix, describing:
 - The assistive technology (e.g., NVDA, JAWS, VoiceOver, Orca, keyboard-only) and browser used.
 - The workflow step affected (Registration, Login, TOTP/Recovery, or Audit Dashboard).
 - Expected vs. observed behavior.

@@ -2,7 +2,7 @@
 
 ## 1. Architectural Philosophy: Honest Zero-Trust Engineering
 
-No system connected to a network should ever rely on security through obscurity or single-perimeter trust. `zero-trust-php-app` is engineered around **NIST SP 800-207 Zero-Trust Principles** and **Defense-in-Depth**:
+No system connected to a network should ever rely on security through obscurity or single-perimeter trust. `zerotrust-php` is engineered around **Zero-Trust Principles** and **Defense-in-Depth**:
 
 - **Assume Breach**: Every component is designed assuming an attacker may already have network visibility, a stolen session cookie, or a read-only database snapshot.
 - **Verify Explicitly**: Every request is authenticated, authorized, and scored against live device and network telemetry before access is granted.
@@ -10,7 +10,7 @@ No system connected to a network should ever rely on security through obscurity 
 
 ## 2. Threat Model & Countermeasures
 
-| Threat Vector | Attack Scenario | Countermeasure in `zero-trust-php-app` |
+| Threat Vector | Attack Scenario | Countermeasure in `zerotrust-php` |
 | :--- | :--- | :--- |
 | **Autonomous AI Agents & Bot Swarms** | LLM-driven agents or headless browsers attempt high-velocity credential stuffing or account enumeration. | Stateless HMAC-signed **SHA-256 Proof-of-Work (PoW)** puzzle + single-use nonce replay table (`used_nonces`) + hidden semantic honeytrap fields + constant-time dummy Argon2id verification on missing users. |
 | **Offline Database Breach / SQL Snapshot Leak** | Attacker obtains a full copy of the SQLite/MySQL database file. | Passwords use **HMAC-SHA256 Peppering** (secret kept in environment/KMS outside DB) + **Argon2id** (`m=64MB, t=4, p=2`). User emails and TOTP secrets are encrypted with **XChaCha20-Poly1305 AEAD** bound to the user's UUID as Associated Authenticated Data (`AAD`). |
@@ -28,7 +28,7 @@ No system connected to a network should ever rely on security through obscurity 
 
 ## 4. Reporting a Vulnerability
 
-If you discover a security vulnerability in this repository:
-1. **Do not open a public GitHub issue.**
+If you discover a security vulnerability in [`MrKhan025/zerotrust-php`](https://github.com/MrKhan025/zerotrust-php):
+1. **Do not open a public GitHub issue.** Report privately via [GitHub Security Advisories](https://github.com/MrKhan025/zerotrust-php/security/advisories/new).
 2. Provide a minimal Proof-of-Concept (PoC) and affected component path to the security maintainers.
 3. Run `php tests/SecurityTest.php` and `php bin/verify-ledger.php` to include diagnostic output with your report.
