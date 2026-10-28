@@ -47,8 +47,12 @@ final class SqliteStorage implements StorageInterface
     public function set(string $key, string $value, int $ttlSeconds = 0): void
     {
         $pdo = self::connection();
+        $now = time();
+        $pdo->prepare('DELETE FROM kv_store WHERE expires_at > 0 AND expires_at < :now')
+            ->execute([':now' => $now]);
+
         $hash = CryptoEngine::blindIndex($key, 'storage');
-        $expires = $ttlSeconds > 0 ? time() + $ttlSeconds : 0;
+        $expires = $ttlSeconds > 0 ? $now + $ttlSeconds : 0;
 
         $stmt = $pdo->prepare('
             INSERT INTO kv_store (key_hash, value, expires_at)
@@ -67,9 +71,23 @@ final class SqliteStorage implements StorageInterface
 
     public function increment(string $key, int $ttlSeconds = 0): int
     {
-        $current = (int) ($this->get($key) ?? '0');
-        $new = $current + 1;
-        $this->set($key, (string) $new, $ttlSeconds);
+        $pdo = self::connection();
+        $hash = CryptoEngine::blindIndex($key, 'storage');
+        $now = time();
+
+        $stmt = $pdo->prepare('SELECT value, expires_at FROM kv_store WHERE key_hash = :h LIMIT 1');
+        $stmt->execute([':h' => $hash]);
+        $row = $stmt->fetch();
+
+        if ($row === false || ((int) $row['expires_at'] > 0 && (int) $row['expires_at'] < $now)) {
+            $this->set($key, '1', $ttlSeconds);
+            return 1;
+        }
+
+        $new = ((int) $row['value']) + 1;
+        $upd = $pdo->prepare('UPDATE kv_store SET value = :v WHERE key_hash = :h');
+        $upd->execute([':v' => (string) $new, ':h' => $hash]);
+
         return $new;
     }
 
