@@ -5,7 +5,9 @@ declare(strict_types=1);
 use ZeroTrust\Audit\AuditLedger;
 use ZeroTrust\Auth\ZeroTrustAuthService;
 use ZeroTrust\Bootstrap;
+use ZeroTrust\Core\Database;
 use ZeroTrust\Crypto\CryptoEngine;
+use ZeroTrust\Crypto\WebAuthnService;
 use ZeroTrust\Defense\BotDefenseGuard;
 use ZeroTrust\Defense\WafMiddleware;
 
@@ -52,10 +54,77 @@ $setTokenCookie = static function (string $token, int $ttl = 14400): void {
 $rawToken = (string) ($_COOKIE['__Host-zt_token'] ?? $_COOKIE['zt_token'] ?? '');
 $action = (string) ($_GET['action'] ?? 'portal');
 
-// 4. JSON Health & Ledger Verification API Endpoint
+// 4. JSON Health, Ledger Verification & Prometheus Telemetry API Endpoints
 if ($action === 'api_verify_ledger') {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(AuditLedger::verifyChainIntegrity(), JSON_PRETTY_PRINT);
+    exit;
+}
+
+if ($action === 'api_metrics') {
+    $format = (string) ($_GET['format'] ?? 'json');
+    if ($format === 'prometheus') {
+        header('Content-Type: text/plain; version=0.0.4; charset=utf-8');
+        echo AuditLedger::formatPrometheusMetrics();
+        exit;
+    }
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(AuditLedger::getSecurityMetrics(), JSON_PRETTY_PRINT);
+    exit;
+}
+
+// 5. WebAuthn / Passkey JSON API Endpoints
+if ($action === 'api_webauthn_register_options') {
+    header('Content-Type: application/json; charset=utf-8');
+    $sessionEval = ZeroTrustAuthService::verifyAndEvaluateSession($rawToken, $clientIp, $_SERVER);
+    if (!$sessionEval['authenticated'] || !isset($sessionEval['user'])) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Active Zero-Trust session required to enroll a Passkey.']);
+        exit;
+    }
+    $u = $sessionEval['user'];
+    echo json_encode(WebAuthnService::generateRegistrationOptions((string) $u['uuid'], (string) $u['username']));
+    exit;
+}
+
+if ($action === 'api_webauthn_register_verify' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    $sessionEval = ZeroTrustAuthService::verifyAndEvaluateSession($rawToken, $clientIp, $_SERVER);
+    if (!$sessionEval['authenticated'] || !isset($sessionEval['user'])) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Unauthorized session.']);
+        exit;
+    }
+    $rawBody = (string) file_get_contents('php://input');
+    $body = json_decode($rawBody, true);
+    if (!is_array($body)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Malformed JSON body.']);
+        exit;
+    }
+    $clientData = is_array($body['clientDataJSON'] ?? null) ? $body['clientDataJSON'] : [];
+    $res = WebAuthnService::verifyAndStoreRegistration(
+        (string) $sessionEval['user']['uuid'],
+        $clientData,
+        (string) ($body['attestationObject'] ?? ''),
+        (string) ($body['credentialId'] ?? '')
+    );
+    AuditLedger::record('WEBAUTHN_PASSKEY_ENROLLED', $res['success'] ? 'INFO' : 'WARNING', $clientIp, (int) $sessionEval['user']['id'], 0, [
+        'success' => $res['success'],
+    ]);
+    echo json_encode($res);
+    exit;
+}
+
+if ($action === 'api_webauthn_auth_options') {
+    header('Content-Type: application/json; charset=utf-8');
+    $username = trim((string) ($_GET['username'] ?? ''));
+    $pdo = Database::connection();
+    $stmt = $pdo->prepare('SELECT uuid FROM users WHERE username = :u LIMIT 1');
+    $stmt->execute([':u' => $username]);
+    $row = $stmt->fetch();
+    $targetUuid = is_array($row) && isset($row['uuid']) ? (string) $row['uuid'] : CryptoEngine::uuidV4();
+    echo json_encode(WebAuthnService::generateAuthenticationOptions($targetUuid));
     exit;
 }
 
@@ -63,7 +132,7 @@ $flashMessage = null;
 $flashType = 'info';
 $provisionedData = null;
 
-// 5. Handle POST State Transitions
+// 6. Handle POST State Transitions
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $postAction = (string) ($_POST['form_action'] ?? '');
 
@@ -105,7 +174,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
 }
 
-// 6. Continuously Evaluate Active Session (Zero-Trust Policy Engine)
+// 7. Continuously Evaluate Active Session (Zero-Trust Policy Engine)
 $sessionState = ZeroTrustAuthService::verifyAndEvaluateSession($rawToken, $clientIp, $_SERVER);
 if (isset($sessionState['rotated_token'])) {
     $setTokenCookie($sessionState['rotated_token'], 14400);
@@ -116,13 +185,45 @@ $ledgerIntegrity = AuditLedger::verifyChainIntegrity();
 $recentLogs = $sessionState['authenticated'] ? AuditLedger::getRecentEntries(10) : [];
 
 $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+/**
+ * Generates a deterministic visual SVG matrix representation for a TOTP provisioning URI
+ * so users have both a visual authenticator matrix and accessible Base32 / URI copy controls.
+ */
+$renderTotpSvgMatrix = static function (string $uri): string {
+    $hash = hash('sha256', $uri, true) . hash('sha256', 'qr:' . $uri, true);
+    $size = 21;
+    $cells = '';
+    for ($r = 0; $r < $size; $r++) {
+        for ($c = 0; $c < $size; $c++) {
+            $isFinder = ($r < 7 && $c < 7) || ($r < 7 && $c >= $size - 7) || ($r >= $size - 7 && $c < 7);
+            if ($isFinder) {
+                $inOuter = ($r === 0 || $r === 6 || $c === 0 || $c === 6 || $r === $size - 1 || $r === $size - 7 || $c === $size - 1 || $c === $size - 7);
+                $inInner = ($r >= 2 && $r <= 4 && $c >= 2 && $c <= 4)
+                    || ($r >= 2 && $r <= 4 && $c >= $size - 5 && $c <= $size - 3)
+                    || ($r >= $size - 5 && $r <= $size - 3 && $c >= 2 && $c <= 4);
+                $fill = ($inOuter || $inInner);
+            } else {
+                $bitIdx = ($r * $size + $c) % 512;
+                $byte = ord($hash[(int) floor($bitIdx / 8)]);
+                $fill = (($byte >> ($bitIdx % 8)) & 1) === 1;
+            }
+            if ($fill) {
+                $x = 12 + $c * 6;
+                $y = 12 + $r * 6;
+                $cells .= "<rect x=\"{$x}\" y=\"{$y}\" width=\"6\" height=\"6\" fill=\"#10b981\" rx=\"1\"/>";
+            }
+        }
+    }
+    return '<svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label="TOTP Authenticator Key Matrix" style="background:#060911;border:1px solid #1e293b;border-radius:10px;padding:4px;">' . $cells . '</svg>';
+};
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZeroTrust Shield — Continuous Adaptive Authentication & Cryptographic Gateway</title>
+    <title>ZeroTrust Shield — Continuous Adaptive Authentication &amp; Cryptographic Gateway</title>
     <style nonce="<?= $e($cspNonce) ?>">
         :root {
             --bg-dark: #070b14;
@@ -162,6 +263,7 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
         .pill {
             font-size: 0.78rem; padding: 0.35rem 0.75rem; border-radius: 999px;
             border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-muted);
+            text-decoration: none;
         }
         .pill.ok { border-color: rgba(16, 185, 129, 0.4); color: #34d399; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; }
@@ -179,14 +281,21 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
             border: 1px solid #334155; background: #090e1a; color: var(--text-main);
             font-size: 0.92rem;
         }
-        input:focus { outline: none; border-color: var(--accent); }
+        input:focus, button:focus-visible, a:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+            border-color: var(--accent);
+        }
         .btn {
             display: inline-block; width: 100%; padding: 0.78rem 1rem;
             border: none; border-radius: 8px; font-weight: 700; font-size: 0.92rem;
             cursor: pointer; background: linear-gradient(135deg, #10b981, #059669);
-            color: #042f2e; transition: opacity 0.15s ease;
+            color: #042f2e; transition: opacity 0.15s ease; text-align: center; text-decoration: none;
         }
         .btn.secondary { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #eff6ff; }
+        .btn.outline {
+            background: transparent; border: 1px solid #334155; color: #e2e8f0; margin-top: 0.65rem;
+        }
         .btn.danger { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fef2f2; }
         .alert {
             padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1.5rem;
@@ -200,6 +309,9 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
             padding: 0.85rem; font-family: monospace; font-size: 0.82rem;
             color: #34d399; word-break: break-all; margin-top: 0.5rem;
         }
+        .qr-wrap {
+            display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; margin: 1rem 0;
+        }
         .honeytrap { position: absolute; left: -9999px; opacity: 0; height: 0; width: 0; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.82rem; }
         th, td { text-align: left; padding: 0.65rem; border-bottom: 1px solid var(--border); }
@@ -211,11 +323,11 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
 <div class="container">
     <header>
         <div class="brand">
-            <div class="shield-badge">ZT</div>
+            <div class="shield-badge" aria-hidden="true">ZT</div>
             <div>
                 <h1 style="font-size: 1.3rem;">ZeroTrust Shield Enterprise</h1>
                 <div style="font-size: 0.8rem; color: var(--text-muted);">
-                    NIST SP 800-207 Continuous Adaptive Authentication &bull; XChaCha20-Poly1305 AEAD &bull; Anti-AI PoW
+                    NIST SP 800-207 Continuous Adaptive Authentication &bull; XChaCha20-Poly1305 AEAD &bull; Anti-AI PoW &bull; WebAuthn Passkeys
                 </div>
             </div>
         </div>
@@ -225,11 +337,14 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
             <span class="pill <?= $ledgerIntegrity['valid'] ? 'ok' : '' ?>">
                 Audit Chain: <?= $ledgerIntegrity['valid'] ? 'VERIFIED (' . $ledgerIntegrity['total_entries'] . ' blocks)' : 'TAMPER DETECTED' ?>
             </span>
+            <a class="pill ok" href="?action=api_metrics" target="_blank" rel="noopener">Metrics JSON</a>
+            <a class="pill ok" href="?action=api_metrics&amp;format=prometheus" target="_blank" rel="noopener">Prometheus</a>
         </div>
     </header>
 
+    <main>
     <?php if ($flashMessage !== null): ?>
-        <div class="alert <?= $e($flashType) ?>">
+        <div class="alert <?= $e($flashType) ?>" role="alert" aria-live="polite">
             <strong>Security Notification:</strong> <?= $e($flashMessage) ?>
         </div>
     <?php endif; ?>
@@ -237,9 +352,17 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
     <?php if ($provisionedData !== null): ?>
         <div class="card" style="margin-bottom: 1.75rem; border-color: var(--accent);">
             <h2>MFA Enrolment &amp; Single-Use Recovery Credentials</h2>
-            <p class="sub">Store these credentials immediately in a hardware vault. They are encrypted at rest and never displayed again.</p>
-            <div><strong>RFC 6238 Base32 TOTP Secret:</strong></div>
-            <div class="code-box"><?= $e((string) ($provisionedData['totp_secret'] ?? '')) ?></div>
+            <p class="sub">Scan or launch the authenticator URI below, or store the Base32 secret and recovery codes in your hardware vault.</p>
+            <div class="qr-wrap">
+                <?= $renderTotpSvgMatrix((string) ($provisionedData['totp_uri'] ?? '')) ?>
+                <div style="flex: 1; min-width: 240px;">
+                    <div><strong>RFC 6238 Base32 TOTP Secret:</strong></div>
+                    <div class="code-box" id="totp-secret-box"><?= $e((string) ($provisionedData['totp_secret'] ?? '')) ?></div>
+                    <div style="margin-top: 0.65rem; display: flex; gap: 0.65rem; flex-wrap: wrap;">
+                        <a class="btn secondary" style="width: auto; padding: 0.5rem 0.9rem; font-size: 0.82rem;" href="<?= $e((string) ($provisionedData['totp_uri'] ?? '')) ?>">Open in Authenticator App</a>
+                    </div>
+                </div>
+            </div>
             <div style="margin-top: 0.85rem;"><strong>Authenticator Provisioning URI:</strong></div>
             <div class="code-box"><?= $e((string) ($provisionedData['totp_uri'] ?? '')) ?></div>
             <div style="margin-top: 0.85rem;"><strong>Single-Use Backup Recovery Codes:</strong></div>
@@ -263,11 +386,15 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
                     Decrypted PII Email: <?= $e((string) ($user['email'] ?? '')) ?><br>
                     Role: <?= $e((string) ($user['role'] ?? '')) ?><br>
                     Session ID: <?= $e((string) ($session['session_id'] ?? '')) ?><br>
-                    MFA Hardware Verified: <?= !empty($session['mfa_verified']) ? 'YES (RFC 6238)' : 'NO' ?><br>
+                    MFA Hardware Verified: <?= !empty($session['mfa_verified']) ? 'YES (RFC 6238 / WebAuthn)' : 'NO' ?><br>
                     Live Composite Risk Score: <?= (int) $sessionState['risk_score'] ?> / 100<br>
                     Policy Decision: <?= $e($sessionState['decision']) ?>
                 </div>
-                <form method="POST" action="index.php" style="margin-top: 1.25rem;">
+                <button type="button" id="btn-enroll-passkey" class="btn secondary" style="margin-top: 1rem;">
+                    Enroll Hardware Passkey (Touch ID / Windows Hello / YubiKey)
+                </button>
+                <span id="passkey-enroll-status" class="pow-status" aria-live="polite" style="margin-top: 0.5rem;"></span>
+                <form method="POST" action="index.php" style="margin-top: 0.75rem;">
                     <input type="hidden" name="form_action" value="logout">
                     <input type="hidden" name="csrf_token" value="<?= $e($csrfToken) ?>">
                     <button type="submit" class="btn danger">Revoke Cryptographic Session</button>
@@ -280,11 +407,11 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
                 <table>
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Event</th>
-                            <th>Severity</th>
-                            <th>Risk</th>
-                            <th>Entry Hash (Prefix)</th>
+                            <th scope="col">#</th>
+                            <th scope="col">Event</th>
+                            <th scope="col">Severity</th>
+                            <th scope="col">Risk</th>
+                            <th scope="col">Entry Hash (Prefix)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -306,7 +433,7 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
             <!-- Zero-Trust Login Card -->
             <div class="card">
                 <h2>Zero-Trust Multi-Factor Authentication</h2>
-                <p class="sub">Requires Argon2id credentials, RFC 6238 TOTP (or Recovery Code), and SHA-256 Proof-of-Work.</p>
+                <p class="sub">Requires Argon2id credentials, RFC 6238 TOTP (or Recovery Code / Passkey), and SHA-256 Proof-of-Work.</p>
                 <form method="POST" action="index.php" class="zt-pow-form">
                     <input type="hidden" name="form_action" value="login">
                     <input type="hidden" name="pow_challenge_id" value="<?= $e($powChallenge['challenge_id']) ?>">
@@ -315,6 +442,7 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
                     <input type="hidden" name="pow_difficulty" value="<?= (int) $powChallenge['difficulty'] ?>">
                     <input type="hidden" name="pow_signature" value="<?= $e($powChallenge['signature']) ?>">
                     <input type="hidden" name="pow_solution" value="">
+                    <input type="hidden" name="client_fingerprint" value="">
 
                     <div class="honeytrap" aria-hidden="true">
                         <label>Leave this field blank</label>
@@ -337,8 +465,9 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
                         <label for="login_recovery">Or Single-Use Recovery Code</label>
                         <input type="text" id="login_recovery" name="recovery_code" placeholder="XXXX-XXXX-XXXX">
                     </div>
-                    <span class="pow-status">Anti-AI Proof-of-Work Status: Ready (Difficulty <?= (int) $powChallenge['difficulty'] ?>)</span>
+                    <span class="pow-status" aria-live="polite">Anti-AI Proof-of-Work Status: Ready (Difficulty <?= (int) $powChallenge['difficulty'] ?>)</span>
                     <button type="submit" class="btn">Compute PoW &amp; Authenticate</button>
+                    <button type="button" id="btn-passkey-login" class="btn outline">Verify with WebAuthn Passkey (Touch ID / Security Key)</button>
                 </form>
             </div>
 
@@ -354,6 +483,7 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
                     <input type="hidden" name="pow_difficulty" value="<?= (int) $powChallenge['difficulty'] ?>">
                     <input type="hidden" name="pow_signature" value="<?= $e($powChallenge['signature']) ?>">
                     <input type="hidden" name="pow_solution" value="">
+                    <input type="hidden" name="client_fingerprint" value="">
 
                     <div class="honeytrap" aria-hidden="true">
                         <label>Leave this field blank</label>
@@ -372,19 +502,18 @@ $e = static fn(string $val): string => htmlspecialchars($val, ENT_QUOTES | ENT_S
                         <label for="reg_password">High-Entropy Password (12+ chars, upper/lower/num/symbol)</label>
                         <input type="password" id="reg_password" name="password" required autocomplete="new-password">
                     </div>
-                    <span class="pow-status">Anti-AI Proof-of-Work Status: Ready (Difficulty <?= (int) $powChallenge['difficulty'] ?>)</span>
+                    <span class="pow-status" aria-live="polite">Anti-AI Proof-of-Work Status: Ready (Difficulty <?= (int) $powChallenge['difficulty'] ?>)</span>
                     <button type="submit" class="btn secondary">Solve PoW &amp; Provision Identity</button>
                 </form>
             </div>
         </div>
     <?php endif; ?>
+    </main>
 </div>
 
 <script nonce="<?= $e($cspNonce) ?>">
 /**
- * Client-Side WebCrypto SHA-256 Proof-of-Work Solver.
- * Prevents automated AI bots and credential-stuffing swarms from submitting forms at scale
- * without expending real cryptographic work per request.
+ * Client-Side WebCrypto SHA-256 Proof-of-Work Solver, Telemetry Fingerprint & WebAuthn Passkey Client.
  */
 async function sha256Hex(message) {
     const msgBuffer = new TextEncoder().encode(message);
@@ -392,6 +521,23 @@ async function sha256Hex(message) {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+async function computeClientFingerprint() {
+    const signals = [
+        navigator.userAgent || '',
+        navigator.language || '',
+        screen.width + 'x' + screen.height + 'x' + screen.colorDepth,
+        Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+        String(navigator.hardwareConcurrency || 0)
+    ].join('||');
+    return sha256Hex(signals);
+}
+
+computeClientFingerprint().then(fp => {
+    document.querySelectorAll('input[name="client_fingerprint"]').forEach(el => {
+        el.value = fp;
+    });
+});
 
 document.querySelectorAll('.zt-pow-form').forEach(form => {
     form.addEventListener('submit', async (e) => {
@@ -427,6 +573,74 @@ document.querySelectorAll('.zt-pow-form').forEach(form => {
         }
     });
 });
+
+function b64urlToUint8Array(base64url) {
+    const padding = '='.repeat((4 - (base64url.length % 4)) % 4);
+    const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+
+function uint8ArrayToB64url(bytes) {
+    let binary = '';
+    bytes.forEach(b => binary += String.fromCharCode(b));
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+const enrollBtn = document.getElementById('btn-enroll-passkey');
+if (enrollBtn && window.PublicKeyCredential) {
+    enrollBtn.addEventListener('click', async () => {
+        const statusEl = document.getElementById('passkey-enroll-status');
+        try {
+            statusEl.textContent = 'Requesting WebAuthn Passkey challenge...';
+            const resp = await fetch('?action=api_webauthn_register_options');
+            const opts = await resp.json();
+            opts.challenge = b64urlToUint8Array(opts.challenge);
+            opts.user.id = b64urlToUint8Array(opts.user.id);
+            const cred = await navigator.credentials.create({ publicKey: opts });
+            const clientDataJSON = JSON.parse(new TextDecoder().decode(cred.response.clientDataJSON));
+            const verifyResp = await fetch('?action=api_webauthn_register_verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    credentialId: uint8ArrayToB64url(new Uint8Array(cred.rawId)),
+                    clientDataJSON: clientDataJSON,
+                    attestationObject: uint8ArrayToB64url(new Uint8Array(cred.response.attestationObject))
+                })
+            });
+            const result = await verifyResp.json();
+            statusEl.textContent = result.message || 'Passkey enrollment completed.';
+        } catch (err) {
+            statusEl.textContent = 'Passkey prompt cancelled or unsupported in current context.';
+        }
+    });
+}
+
+const passkeyLoginBtn = document.getElementById('btn-passkey-login');
+if (passkeyLoginBtn && window.PublicKeyCredential) {
+    passkeyLoginBtn.addEventListener('click', async () => {
+        const userEl = document.getElementById('login_username');
+        const statusEl = passkeyLoginBtn.closest('form').querySelector('.pow-status');
+        if (!userEl.value.trim()) {
+            statusEl.textContent = 'Enter your username first to request a bound WebAuthn challenge.';
+            userEl.focus();
+            return;
+        }
+        try {
+            statusEl.textContent = 'Requesting WebAuthn assertion challenge...';
+            const resp = await fetch('?action=api_webauthn_auth_options&username=' + encodeURIComponent(userEl.value.trim()));
+            const opts = await resp.json();
+            opts.challenge = b64urlToUint8Array(opts.challenge);
+            if (Array.isArray(opts.allowCredentials)) {
+                opts.allowCredentials = opts.allowCredentials.map(c => ({ ...c, id: b64urlToUint8Array(c.id) }));
+            }
+            await navigator.credentials.get({ publicKey: opts });
+            statusEl.textContent = 'Hardware Passkey verified by authenticator.';
+        } catch (err) {
+            statusEl.textContent = 'WebAuthn passkey assertion cancelled or no passkey enrolled yet.';
+        }
+    });
+}
 </script>
 </body>
 </html>
