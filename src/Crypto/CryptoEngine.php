@@ -161,12 +161,22 @@ final class CryptoEngine
         self::wipe($pepper);
 
         $algo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT;
-        $options = defined('PASSWORD_ARGON2ID')
-            ? ['memory_cost' => 65536, 'time_cost' => 4, 'threads' => 2]
-            : ['cost' => 12];
+        if (defined('PASSWORD_ARGON2ID')) {
+            $options = ['memory_cost' => 65536, 'time_cost' => 4];
+            if (defined('PASSWORD_ARGON2_DEFAULT_THREADS') && PHP_OS_FAMILY === 'Linux') {
+                $options['threads'] = 2;
+            }
+        } else {
+            $options = ['cost' => 12];
+        }
 
         try {
-            return password_hash($peppered, $algo, $options);
+            try {
+                return password_hash($peppered, $algo, $options);
+            } catch (\ValueError) {
+                unset($options['threads']);
+                return password_hash($peppered, $algo, $options);
+            }
         } finally {
             self::wipe($peppered);
         }
