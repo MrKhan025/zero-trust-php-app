@@ -1,16 +1,15 @@
-# ZeroTrust Shield Enterprise (`zerotrust-php`)
+# `zerotrust-php`
 
 [![CI — Security Tests & Static Analysis](https://github.com/MrKhan025/zerotrust-php/actions/workflows/ci.yml/badge.svg)](https://github.com/MrKhan025/zerotrust-php/actions/workflows/ci.yml)
 [![CodeQL Security Analysis](https://github.com/MrKhan025/zerotrust-php/actions/workflows/codeql.yml/badge.svg)](https://github.com/MrKhan025/zerotrust-php/actions/workflows/codeql.yml)
 [![PHP Version](https://img.shields.io/badge/PHP-8.4%20%7C%208.5%20%7C%208.6-777BB4?logo=php&logoColor=white)](https://www.php.net/)
 [![OS Matrix](https://img.shields.io/badge/OS-Ubuntu%2026.04%20%7C%20macOS%2015%20%7C%20Windows%202025-E95420?logo=ubuntu&logoColor=white)](.github/workflows/ci.yml)
-[![Architecture](https://img.shields.io/badge/NIST-SP%20800--207%20Zero--Trust-10b981)](https://csrc.nist.gov/publications/detail/sp/800-207/final)
 [![Cryptography](https://img.shields.io/badge/AEAD-XChaCha20--Poly1305%20%7C%20AES--256--GCM-3b82f6)](SECURITY.md)
 [![Static Analysis](https://img.shields.io/badge/PHPStan-Level%206%20(v2.2)-8b5cf6)](phpstan.neon)
 [![Accessibility](https://img.shields.io/badge/WCAG-2.1%20AA%20Compliant-f59e0b)](ACCESSIBILITY.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-22c55e)](LICENSE)
 
-**ZeroTrust Shield Enterprise** is a production-grade, zero-dependency PHP reference architecture implementing **NIST SP 800-207 Continuous Adaptive Authentication**, **XChaCha20-Poly1305 / AES-256-GCM Authenticated Encryption (AEAD)**, **Stateless SHA-256 Proof-of-Work (PoW) Anti-AI Bot Defense**, **RFC 6238 TOTP & Pure-PHP WebAuthn Passkeys**, and a **Tamper-Evident Cryptographic Hash-Chained Audit Ledger**.
+**`zerotrust-php`** is a production-grade, zero-dependency PHP reference architecture implementing **Continuous Adaptive Authentication**, **XChaCha20-Poly1305 / AES-256-GCM Authenticated Encryption (AEAD)**, **Stateless SHA-256 Proof-of-Work (PoW) Anti-AI Bot Defense**, **RFC 6238 TOTP & Pure-PHP WebAuthn Passkeys**, and a **Tamper-Evident Cryptographic Hash-Chained Audit Ledger**.
 
 > **Core Philosophy — Assume Breach, Verify Explicitly:** Never trust a network perimeter, an unverified form submission, or a previously issued session cookie. Every HTTP request is inspected by an application-layer WAF, bound to device and network telemetry, and logged in an AEAD-encrypted, HMAC-chained forensic ledger.
 
@@ -109,7 +108,7 @@ composer serve
 # Or directly: php -S 127.0.0.1:8080 -t public
 ```
 
-Open **`http://127.0.0.1:8080`** in your browser to access the ZeroTrust Shield interactive gateway.
+Open **`http://127.0.0.1:8080`** in your browser to access the zerotrust-php interactive gateway.
 
 ### 3. Docker & Nginx Deployment
 
@@ -182,7 +181,7 @@ zerotrust-php/
 │   ├── Defense/BotDefenseGuard.php  # Stateless SHA-256 Proof-of-Work, honeytrap & replay defense
 │   ├── Defense/RateLimiter.php      # Sliding-window & exponential backoff rate limiter
 │   ├── Defense/WafMiddleware.php    # Request payload signature inspection & CSP nonce headers
-│   ├── Policy/ZeroTrustPolicyEngine.php # NIST SP 800-207 adaptive session risk scoring engine
+│   ├── Policy/ZeroTrustPolicyEngine.php # Continuous adaptive session risk scoring engine
 │   ├── Storage/                     # Pluggable key-value storage abstraction (SQLite & Redis)
 │   └── Bootstrap.php                # Self-contained PSR-4 autoloader & runtime security hardening
 ├── tests/                           # PHPUnit 11 test suite & standalone adversarial SecurityTest runner
