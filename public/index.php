@@ -69,7 +69,13 @@ if ($action === 'api_metrics') {
         exit;
     }
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(AuditLedger::getSecurityMetrics(), JSON_PRETTY_PRINT);
+    echo json_encode(array_merge(
+        [
+            'repository' => 'https://github.com/MrKhan025/zerotrust-php',
+            'package' => 'mrkhan025/zerotrust-php',
+        ],
+        AuditLedger::getSecurityMetrics()
+    ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -223,7 +229,7 @@ $renderTotpSvgMatrix = static function (string $uri): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZeroTrust Shield — Continuous Adaptive Authentication &amp; Cryptographic Gateway</title>
+    <title>zerotrust-php — Continuous Adaptive Authentication &amp; Cryptographic Gateway</title>
     <style nonce="<?= $e($cspNonce) ?>">
         :root {
             --bg-dark: #070b14;
@@ -325,9 +331,9 @@ $renderTotpSvgMatrix = static function (string $uri): string {
         <div class="brand">
             <div class="shield-badge" aria-hidden="true">ZT</div>
             <div>
-                <h1 style="font-size: 1.3rem;">ZeroTrust Shield Enterprise</h1>
+                <h1 style="font-size: 1.3rem;">zerotrust-php</h1>
                 <div style="font-size: 0.8rem; color: var(--text-muted);">
-                    NIST SP 800-207 Continuous Adaptive Authentication &bull; XChaCha20-Poly1305 AEAD &bull; Anti-AI PoW &bull; WebAuthn Passkeys
+                    Continuous Adaptive Authentication &bull; XChaCha20-Poly1305 AEAD &bull; Anti-AI PoW &bull; WebAuthn Passkeys
                 </div>
             </div>
         </div>
@@ -339,6 +345,7 @@ $renderTotpSvgMatrix = static function (string $uri): string {
             </span>
             <a class="pill ok" href="?action=api_metrics" target="_blank" rel="noopener">Metrics JSON</a>
             <a class="pill ok" href="?action=api_metrics&amp;format=prometheus" target="_blank" rel="noopener">Prometheus</a>
+            <a class="pill ok" href="https://github.com/MrKhan025/zerotrust-php" target="_blank" rel="noopener">GitHub: zerotrust-php</a>
         </div>
     </header>
 
