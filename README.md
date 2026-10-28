@@ -1,7 +1,7 @@
-# ZeroTrust Shield Enterprise (`zero-trust-php-app`)
+# ZeroTrust Shield Enterprise (`zerotrust-php`)
 
-[![CI — Security Tests & Static Analysis](https://github.com/MrKhan025/zero-trust-php-app/actions/workflows/ci.yml/badge.svg)](https://github.com/MrKhan025/zero-trust-php-app/actions/workflows/ci.yml)
-[![CodeQL Security Analysis](https://github.com/MrKhan025/zero-trust-php-app/actions/workflows/codeql.yml/badge.svg)](https://github.com/MrKhan025/zero-trust-php-app/actions/workflows/codeql.yml)
+[![CI — Security Tests & Static Analysis](https://github.com/MrKhan025/zerotrust-php/actions/workflows/ci.yml/badge.svg)](https://github.com/MrKhan025/zerotrust-php/actions/workflows/ci.yml)
+[![CodeQL Security Analysis](https://github.com/MrKhan025/zerotrust-php/actions/workflows/codeql.yml/badge.svg)](https://github.com/MrKhan025/zerotrust-php/actions/workflows/codeql.yml)
 [![PHP Version](https://img.shields.io/badge/PHP-8.4%20%7C%208.5%20%7C%208.6-777BB4?logo=php&logoColor=white)](https://www.php.net/)
 [![OS Matrix](https://img.shields.io/badge/OS-Ubuntu%2026.04%20%7C%20macOS%2015%20%7C%20Windows%202025-E95420?logo=ubuntu&logoColor=white)](.github/workflows/ci.yml)
 [![Architecture](https://img.shields.io/badge/NIST-SP%20800--207%20Zero--Trust-10b981)](https://csrc.nist.gov/publications/detail/sp/800-207/final)
@@ -94,8 +94,8 @@ Incoming HTTP Request
 
 ```bash
 # Clone the repository
-git clone https://github.com/MrKhan025/zero-trust-php-app.git
-cd zero-trust-php-app
+git clone https://github.com/MrKhan025/zerotrust-php.git
+cd zerotrust-php
 
 # Install dev dependencies (PHPUnit 11 & PHPStan 2.2)
 composer install
@@ -153,7 +153,7 @@ php bin/verify-ledger.php
 ## Project Structure
 
 ```text
-zero-trust-php-app/
+zerotrust-php/
 ├── .github/
 │   ├── ISSUE_TEMPLATE/              # Structured Bug Report & Feature Request issue forms
 │   ├── workflows/
