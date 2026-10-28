@@ -1,12 +1,12 @@
 name: Bug Report
-description: Report a non-sensitive bug, regression, or unexpected behavior in ZeroTrust Shield.
+description: Report a non-sensitive bug, regression, or unexpected behavior in zerotrust-php.
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        > **Security Notice:** Do **not** report security vulnerabilities in public GitHub issues. Please follow the private disclosure instructions in [`SECURITY.md`](https://github.com/MrKhan025/zero-trust-php-app/blob/main/SECURITY.md).
+        > **Security Notice:** Do **not** report security vulnerabilities in public GitHub issues. Please follow the private disclosure instructions in [`SECURITY.md`](https://github.com/MrKhan025/zerotrust-php/blob/main/SECURITY.md).
 
   - type: textarea
     id: summary
@@ -51,8 +51,8 @@ body:
       label: Environment Details
       description: PHP version, OS, and storage driver.
       value: |
-        - PHP Version: 8.4
-        - OS / Container: Ubuntu 24.04 / Alpine Docker
+        - PHP Version: 8.5
+        - OS / Container: Ubuntu 26.04 LTS / Alpine Docker
         - Storage Driver: sqlite
     validations:
       required: true
